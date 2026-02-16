@@ -278,12 +278,16 @@
             height: 3px;
             border-radius: 14px 14px 0 0;
         }
-        .stock-card.score-5::before, .stock-card.score-6::before,
-        .stock-card.score-7::before, .stock-card.score-8::before { background: var(--green); }
-        .stock-card.score-4::before { background: var(--blue); }
-        .stock-card.score-3::before { background: var(--yellow); }
-        .stock-card.score-2::before { background: var(--text-muted); }
-        .stock-card.score-1::before, .stock-card.score-0::before { background: var(--red); }
+        .stock-card.score-tier-top::before { background: linear-gradient(90deg, #22c55e, #16a34a); height: 4px; }
+        .stock-card.score-tier-high::before { background: var(--green); }
+        .stock-card.score-tier-good::before { background: var(--blue); }
+        .stock-card.score-tier-mid::before { background: var(--yellow); }
+        .stock-card.score-tier-low::before { background: var(--text-muted); }
+        .stock-card.score-tier-weak::before { background: var(--red); }
+        /* AI signal border glow */
+        .stock-card.ai-buy { border-color: rgba(34,197,94,0.4); box-shadow: 0 0 15px rgba(34,197,94,0.08); }
+        .stock-card.ai-sell { border-color: rgba(239,68,68,0.4); box-shadow: 0 0 15px rgba(239,68,68,0.08); }
+        .stock-card.ai-neutral { border-color: rgba(245,158,11,0.3); }
 
         .card-header {
             display: flex;
@@ -562,13 +566,14 @@
             </div>
             <div class="control-group">
                 <label>🎯 Min Score</label>
-                <select id="minScore">
-                    <option value="0">All (0+)</option>
-                    <option value="1">1+</option>
-                    <option value="2" selected>2+ (Default)</option>
-                    <option value="3">3+ (Good)</option>
-                    <option value="4">4+ (Strong)</option>
-                    <option value="5">5+ (Best)</option>
+                <select id="minScore" style="min-width: 180px;">
+                    <option value="0">📋 All Stocks (0+)</option>
+                    <option value="2" selected>⚡ Moderate (2+)</option>
+                    <option value="5">🟢 Good Setup (5+)</option>
+                    <option value="8">🔥 Strong Signal (8+)</option>
+                    <option value="12">💎 Excellent (12+)</option>
+                    <option value="15">🏆 Top Picks (15+)</option>
+                    <option value="20">🚀 Rare Gem (20+)</option>
                 </select>
             </div>
             <button class="btn btn-primary" id="analyzeBtn" onclick="runAnalysis()">
@@ -589,15 +594,27 @@
         </div>
         <div class="stat-card">
             <div class="stat-value" style="color: var(--green)" id="statBullish">0</div>
-            <div class="stat-label">Score 5+</div>
+            <div class="stat-label">Score 10+</div>
         </div>
         <div class="stat-card">
             <div class="stat-value" style="color: var(--blue)" id="statStrong">0</div>
-            <div class="stat-label">Score 4</div>
+            <div class="stat-label">Score 5-9</div>
         </div>
         <div class="stat-card">
             <div class="stat-value" id="statDate">—</div>
             <div class="stat-label">Analysis Date</div>
+        </div>
+        <div class="stat-card" id="statAiBuyCard" style="display:none;">
+            <div class="stat-value" style="color: var(--green)" id="statAiBuy">0</div>
+            <div class="stat-label">🟢 AI Buy</div>
+        </div>
+        <div class="stat-card" id="statAiSellCard" style="display:none;">
+            <div class="stat-value" style="color: var(--red)" id="statAiSell">0</div>
+            <div class="stat-label">🔴 AI Sell</div>
+        </div>
+        <div class="stat-card" id="statAiNeutralCard" style="display:none;">
+            <div class="stat-value" style="color: var(--yellow)" id="statAiNeutral">0</div>
+            <div class="stat-label">🟡 AI Neutral</div>
         </div>
     </div>
 
@@ -608,13 +625,17 @@
         <button class="filter-tab" data-filter="oversold" onclick="filterStocks('oversold', this)">📉 Oversold</button>
         <button class="filter-tab" data-filter="momentum" onclick="filterStocks('momentum', this)">🚀 Momentum</button>
         <button class="filter-tab" data-filter="golden" onclick="filterStocks('golden', this)">⭐ Golden Cross</button>
+        <span class="ai-filter-divider" id="aiFilterDivider" style="display:none; width:1px; height:24px; background:var(--border); margin:0 4px;"></span>
+        <button class="filter-tab" data-filter="ai-buy" id="aiFilterBuy" style="display:none; border-color:var(--green); color:var(--green);" onclick="filterStocks('ai-buy', this)">🟢 AI Buy</button>
+        <button class="filter-tab" data-filter="ai-sell" id="aiFilterSell" style="display:none; border-color:var(--red); color:var(--red);" onclick="filterStocks('ai-sell', this)">🔴 AI Sell</button>
+        <button class="filter-tab" data-filter="ai-neutral" id="aiFilterNeutral" style="display:none; border-color:var(--yellow); color:var(--yellow);" onclick="filterStocks('ai-neutral', this)">🟡 AI Neutral</button>
         <input type="text" class="search-box" id="searchBox" placeholder="🔍 Search stock..." oninput="searchStocks(this.value)">
     </div>
 
     <!-- AI Recommendation Bar (hidden until results) -->
     <div id="aiBar" style="display: none; padding: 8px 32px; background: var(--card); border-bottom: 1px solid var(--border);">
         <button id="aiBtn" onclick="getAiRecommendations()" style="background: linear-gradient(135deg, #6c63ff, #3b82f6); color: white; border: none; padding: 10px 24px; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 600;">
-            🤖 Get AI Buy/Sell Recommendations
+            🤖 Get AI Buy / Sell / Neutral
         </button>
         <span id="aiStatus" style="margin-left: 12px; color: var(--text-muted); font-size: 13px;"></span>
     </div>
@@ -792,8 +813,8 @@
         function updateStats(data) {
             document.getElementById('statTotal').textContent = data.total_stocks;
             document.getElementById('statQualified').textContent = data.qualified_count;
-            document.getElementById('statBullish').textContent = data.qualified.filter(s => s.score >= 5).length;
-            document.getElementById('statStrong').textContent = data.qualified.filter(s => s.score === 4).length;
+            document.getElementById('statBullish').textContent = allResults.filter(s => s.score >= 10).length;
+            document.getElementById('statStrong').textContent = allResults.filter(s => s.score >= 5 && s.score < 10).length;
             document.getElementById('statDate').textContent = data.date;
             document.getElementById('statDate').style.fontSize = '16px';
         }
@@ -813,7 +834,8 @@
             }
 
             grid.innerHTML = stocks.map(s => {
-                const scoreClass = s.score >= 5 ? 'score-high' : s.score >= 4 ? 'score-med' : s.score >= 3 ? 'score-low' : 'score-none';
+                const scoreTier = s.score >= 15 ? 'score-tier-top' : s.score >= 10 ? 'score-tier-high' : s.score >= 7 ? 'score-tier-good' : s.score >= 4 ? 'score-tier-mid' : s.score >= 2 ? 'score-tier-low' : 'score-tier-weak';
+                const scoreClass = s.score >= 12 ? 'score-high' : s.score >= 7 ? 'score-med' : s.score >= 4 ? 'score-low' : 'score-none';
                 const changeClass = s.change >= 0 ? 'up' : 'down';
                 const changeSign = s.change >= 0 ? '+' : '';
 
@@ -824,12 +846,34 @@
                 // RSI color
                 const rsiColor = s.rsi < 30 ? 'var(--green)' : s.rsi > 70 ? 'var(--red)' : 'var(--text)';
 
+                // AI recommendation for this stock
+                const aiRec = aiRecommendations[s.name];
+                const aiSignal = aiRec ? (aiRec.action === 'BUY' ? 'ai-buy' : aiRec.action === 'AVOID' ? 'ai-sell' : 'ai-neutral') : '';
+                let aiBadgeHtml = '';
+                if (aiRec) {
+                    const label = aiRec.action === 'BUY' ? '🟢 BUY' : aiRec.action === 'AVOID' ? '🔴 SELL' : '🟡 NEUTRAL';
+                    const bgColor = aiRec.action === 'BUY' ? 'var(--green-bg)' : aiRec.action === 'AVOID' ? 'var(--red-bg)' : 'var(--yellow-bg)';
+                    const fgColor = aiRec.action === 'BUY' ? 'var(--green)' : aiRec.action === 'AVOID' ? 'var(--red)' : 'var(--yellow)';
+                    let targetHtml = '';
+                    if (aiRec.action === 'BUY' && aiRec.target) {
+                        targetHtml = `<span style="font-size:11px; color:var(--text-muted); margin-left:8px;">🎯 ₹${Number(aiRec.target).toLocaleString('en-IN')} · SL ₹${Number(aiRec.stoploss).toLocaleString('en-IN')}</span>`;
+                    }
+                    aiBadgeHtml = `
+                    <div style="background:${bgColor}; border:1px solid ${fgColor}30; border-radius:10px; padding:8px 12px; margin-bottom:12px;">
+                        <span style="font-weight:700; font-size:14px; color:${fgColor};">${label}</span>
+                        <span style="font-size:11px; color:var(--text-muted); margin-left:6px;">${aiRec.confidence}</span>
+                        ${targetHtml}
+                        <div style="font-size:11px; color:var(--text); margin-top:4px; line-height:1.4;">${aiRec.reason}</div>
+                    </div>`;
+                }
+
                 return `
-                <div class="stock-card score-${s.score}" onclick="this.classList.toggle('expanded')">
+                <div class="stock-card ${scoreTier} ${aiSignal}" onclick="this.classList.toggle('expanded')">
+                    ${aiBadgeHtml}
                     <div class="card-header">
                         <div>
                             <div class="stock-name">${s.name}</div>
-                            <div class="stock-exchange">NSE</div>
+                            <div class="stock-exchange">NSE · Score ${s.score}/30</div>
                         </div>
                         <div class="score-badge ${scoreClass}">${s.score}</div>
                     </div>
@@ -923,10 +967,7 @@
                         </div>
                     </div>
 
-                    <!-- AI Recommendation (filled after LLM call) -->
-                    <div class="ai-rec-container" id="ai-${s.name}" style="display:none;"></div>
-
-                    <div class="expand-hint">click to expand</div>
+                    <div class="expand-hint">▼ click for details</div>
                 </div>
                 `;
             }).join('');
@@ -946,7 +987,7 @@
 
             btn.disabled = true;
             btn.innerHTML = '🤖 Analyzing with AI...';
-            status.innerHTML = '⏳ Sending 47 stocks to Gemini AI — this takes ~15 seconds...';
+            status.innerHTML = '⏳ Sending stocks to AI — this takes ~20 seconds...';
 
             try {
                 const res = await fetch('/api/llm-analyze', {
@@ -966,35 +1007,28 @@
 
                 aiRecommendations = data.recommendations || {};
                 const buyCount = Object.values(aiRecommendations).filter(r => r.action === 'BUY').length;
-                const holdCount = Object.values(aiRecommendations).filter(r => r.action === 'HOLD').length;
-                const avoidCount = Object.values(aiRecommendations).filter(r => r.action === 'AVOID').length;
+                const neutralCount = Object.values(aiRecommendations).filter(r => r.action === 'HOLD').length;
+                const sellCount = Object.values(aiRecommendations).filter(r => r.action === 'AVOID').length;
 
-                status.innerHTML = `✅ AI Done — <span style="color:var(--green)">${buyCount} BUY</span> · <span style="color:var(--yellow)">${holdCount} HOLD</span> · <span style="color:var(--red)">${avoidCount} AVOID</span>`;
+                status.innerHTML = `✅ AI Done — <span style="color:var(--green)">${buyCount} BUY</span> · <span style="color:var(--yellow)">${neutralCount} NEUTRAL</span> · <span style="color:var(--red)">${sellCount} SELL</span>`;
                 btn.innerHTML = '🤖 AI Done ✓';
 
-                // Render AI badges on each card
-                for (const [name, rec] of Object.entries(aiRecommendations)) {
-                    const el = document.getElementById(`ai-${name}`);
-                    if (el) {
-                        el.style.display = 'block';
-                        let metaHtml = '';
-                        if (rec.action === 'BUY' && rec.target) {
-                            metaHtml = `
-                                <div class="ai-meta">
-                                    <span>🎯 Target: ₹${Number(rec.target).toLocaleString('en-IN')}</span>
-                                    <span>🛡️ SL: ₹${Number(rec.stoploss).toLocaleString('en-IN')}</span>
-                                    <span>⚖️ R:R ${rec.risk_reward}</span>
-                                </div>`;
-                        }
-                        el.innerHTML = `
-                            <div class="ai-rec ${rec.action}">
-                                <span class="ai-action ${rec.action}">${rec.action === 'BUY' ? '🟢 BUY' : rec.action === 'AVOID' ? '🔴 AVOID' : '🟡 HOLD'}</span>
-                                <span class="ai-confidence">${rec.confidence} confidence</span>
-                                <div style="margin-top: 6px; color: var(--text); font-size: 12px;">${rec.reason}</div>
-                                ${metaHtml}
-                            </div>`;
-                    }
-                }
+                // Show AI stat cards
+                document.getElementById('statAiBuy').textContent = buyCount;
+                document.getElementById('statAiSell').textContent = sellCount;
+                document.getElementById('statAiNeutral').textContent = neutralCount;
+                document.getElementById('statAiBuyCard').style.display = 'block';
+                document.getElementById('statAiSellCard').style.display = 'block';
+                document.getElementById('statAiNeutralCard').style.display = 'block';
+
+                // Show AI filter tabs
+                document.getElementById('aiFilterDivider').style.display = 'block';
+                document.getElementById('aiFilterBuy').style.display = 'inline-block';
+                document.getElementById('aiFilterSell').style.display = 'inline-block';
+                document.getElementById('aiFilterNeutral').style.display = 'inline-block';
+
+                // Re-render current view to show AI badges on cards
+                filterStocks(currentFilter, document.querySelector(`.filter-tab[data-filter="${currentFilter}"]`));
 
             } catch (err) {
                 status.innerHTML = `❌ Error: ${err.message}`;
@@ -1029,6 +1063,15 @@
                     filtered = allResults.filter(s =>
                         s.reasons.some(r => r.text.includes('Golden Cross'))
                     );
+                    break;
+                case 'ai-buy':
+                    filtered = allResults.filter(s => aiRecommendations[s.name]?.action === 'BUY');
+                    break;
+                case 'ai-sell':
+                    filtered = allResults.filter(s => aiRecommendations[s.name]?.action === 'AVOID');
+                    break;
+                case 'ai-neutral':
+                    filtered = allResults.filter(s => aiRecommendations[s.name]?.action === 'HOLD');
                     break;
                 default:
                     filtered = allResults;
