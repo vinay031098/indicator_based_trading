@@ -9,6 +9,8 @@ import pandas as pd
 import webbrowser
 import threading
 import os
+from dotenv import load_dotenv
+load_dotenv()  # Load .env file (GITHUB_TOKEN, GEMINI_API_KEY, etc.)
 from datetime import datetime, timedelta
 from flyers_integration import FyersClient, NIFTY_50_FYERS
 from fyers_apiv3 import fyersModel
