@@ -1,8 +1,11 @@
 """
-LLM Stock Analyzer — Uses Google Gemini to analyze stock indicators
-and recommend Buy / Hold / Avoid for next trading day.
+LLM Stock Analyzer — Uses GitHub Models API (free with GitHub account)
+to analyze stock indicators and recommend Buy / Hold / Avoid.
 
-Sends stocks in batches of 10 to avoid output truncation, then merges results.
+Primary: GitHub Models (gpt-4o-mini via models.inference.ai.azure.com)
+Fallback: Google Gemini (gemini-2.5-flash)
+
+Sends stocks in batches to avoid output truncation.
 Includes JSON repair for partial/malformed responses.
 """
 
@@ -12,11 +15,22 @@ import re
 import time
 import requests
 
+# ─── API Keys ─────────────────────────────────────────────────────
+# GitHub PAT with models:read scope — get one at https://github.com/settings/tokens
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+# Gemini fallback
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyBIl0FszcAAYd7YAR8MPsmhDGLu8S2mVU0")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
-BATCH_SIZE = 10          # stocks per API call — keeps output short & reliable
-MAX_RETRIES = 2          # retry a batch on failure
+# GitHub Models endpoint (OpenAI-compatible)
+GITHUB_MODELS_URL = "https://models.inference.ai.azure.com/chat/completions"
+GITHUB_MODEL = "gpt-4o-mini"  # free tier, fast, good at JSON
+
+# Gemini fallback
+GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
+
+BATCH_SIZE = 10
+MAX_RETRIES = 2
 
 
 # ─── JSON repair helpers ──────────────────────────────────────────
@@ -112,53 +126,142 @@ def _build_batch_prompt(stocks_batch):
     return header
 
 
-# ─── Single batch API call ────────────────────────────────────────
+# ─── API call: GitHub Models (primary) ────────────────────────────
+
+def _call_github_models(prompt):
+    """Call GitHub Models API (OpenAI-compatible) and return parsed JSON list."""
+    if not GITHUB_TOKEN:
+        return None
+
+    try:
+        resp = requests.post(
+            GITHUB_MODELS_URL,
+            headers={
+                "Authorization": f"Bearer {GITHUB_TOKEN}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": GITHUB_MODEL,
+                "messages": [
+                    {"role": "system", "content": "You are a stock market technical analyst. Always respond with valid JSON only."},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.2,
+                "max_tokens": 4096,
+                "response_format": {"type": "json_object"}
+            },
+            timeout=60
+        )
+
+        if resp.status_code == 429:
+            print(f"  ⚠ GitHub Models rate limited (429), will try Gemini fallback")
+            return None
+        if resp.status_code != 200:
+            print(f"  ⚠ GitHub Models API {resp.status_code}: {resp.text[:200]}")
+            return None
+
+        data = resp.json()
+        text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        if not text:
+            return None
+
+        parsed = _repair_json(text)
+        # json_object mode may wrap in {"recommendations": [...]} — extract array
+        if isinstance(parsed, dict):
+            for key in ("recommendations", "stocks", "data", "results"):
+                if key in parsed and isinstance(parsed[key], list):
+                    return parsed[key]
+            # If it's a single-item dict with a list value, use it
+            for v in parsed.values():
+                if isinstance(v, list):
+                    return v
+
+        if isinstance(parsed, list):
+            return parsed
+
+        print(f"  ⚠ GitHub Models: unexpected response shape")
+        return None
+
+    except Exception as e:
+        print(f"  ⚠ GitHub Models error: {e}")
+        return None
+
+
+# ─── API call: Gemini (fallback) ──────────────────────────────────
 
 def _call_gemini(prompt):
-    """Call Gemini API and return parsed JSON list or None."""
-
-    resp = requests.post(
-        f"{GEMINI_URL}?key={GEMINI_API_KEY}",
-        json={
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.2,
-                "maxOutputTokens": 4096,
-                "responseMimeType": "application/json"
-            }
-        },
-        timeout=60
-    )
-
-    if resp.status_code != 200:
-        print(f"  ⚠ Gemini API {resp.status_code}: {resp.text[:200]}")
+    """Call Gemini API with automatic model fallback. Returns parsed JSON list."""
+    if not GEMINI_API_KEY:
         return None
 
-    data = resp.json()
+    for model in GEMINI_MODELS:
+        try:
+            url = f"{GEMINI_BASE}/{model}:generateContent?key={GEMINI_API_KEY}"
+            resp = requests.post(
+                url,
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "temperature": 0.2,
+                        "maxOutputTokens": 4096,
+                        "responseMimeType": "application/json"
+                    }
+                },
+                timeout=60
+            )
 
-    # Check for safety / finish reason issues
-    candidate = (data.get("candidates") or [{}])[0]
-    finish = candidate.get("finishReason", "")
-    if finish not in ("STOP", ""):
-        print(f"  ⚠ Gemini finishReason: {finish}")
+            if resp.status_code == 429:
+                print(f"  ⚠ Gemini {model} rate limited, trying next...")
+                continue
+            if resp.status_code != 200:
+                print(f"  ⚠ Gemini {model} error {resp.status_code}: {resp.text[:150]}")
+                continue
 
-    text = candidate.get("content", {}).get("parts", [{}])[0].get("text", "")
-    if not text:
-        return None
+            data = resp.json()
+            candidate = (data.get("candidates") or [{}])[0]
+            text = candidate.get("content", {}).get("parts", [{}])[0].get("text", "")
+            if not text:
+                continue
 
-    parsed = _repair_json(text)
-    if parsed is None:
-        print(f"  ⚠ JSON repair failed. Raw ({len(text)} chars): {text[:300]}")
-    return parsed
+            parsed = _repair_json(text)
+            if parsed and isinstance(parsed, list) and len(parsed) > 0:
+                print(f"  ✓ Using Gemini model: {model}")
+                return parsed
+
+        except Exception as e:
+            print(f"  ⚠ Gemini {model} exception: {e}")
+            continue
+
+    return None
+
+
+# ─── Unified API call (tries GitHub first, then Gemini) ───────────
+
+def _call_llm(prompt):
+    """Try GitHub Models first, fall back to Gemini."""
+    # Try GitHub Models
+    result = _call_github_models(prompt)
+    if result and isinstance(result, list) and len(result) > 0:
+        return result
+
+    # Fall back to Gemini
+    result = _call_gemini(prompt)
+    if result and isinstance(result, list) and len(result) > 0:
+        return result
+
+    return None
 
 
 # ─── Main entry point ────────────────────────────────────────────
 
 def analyze_with_llm(stocks_data):
-    """Send stock data to Gemini in batches, merge results."""
+    """Send stock data to LLM in batches, merge results."""
 
-    if not GEMINI_API_KEY:
-        return {"error": "GEMINI_API_KEY not set. Add it in Render environment variables."}
+    if not GITHUB_TOKEN and not GEMINI_API_KEY:
+        return {"error": "No API key set. Add GITHUB_TOKEN or GEMINI_API_KEY in environment."}
+
+    using = "GitHub Models (gpt-4o-mini)" if GITHUB_TOKEN else "Gemini (fallback)"
+    print(f"🤖 LLM provider: {using}")
 
     valid = [s for s in stocks_data if s is not None]
     if not valid:
@@ -179,7 +282,7 @@ def analyze_with_llm(stocks_data):
         result = None
 
         for attempt in range(MAX_RETRIES + 1):
-            result = _call_gemini(prompt)
+            result = _call_llm(prompt)
             if result and isinstance(result, list) and len(result) > 0:
                 break
             if attempt < MAX_RETRIES:
