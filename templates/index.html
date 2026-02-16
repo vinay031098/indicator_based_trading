@@ -569,22 +569,17 @@
         {% if not authenticated %}
         <div class="auth-section" id="connectingState" style="max-width: 520px; margin: 60px auto; padding: 40px; background: var(--card); border-radius: 16px; border: 1px solid var(--border); text-align: center;">
             <div style="font-size: 40px; margin-bottom: 12px;">🔑</div>
-            {% if production %}
-            <h3 style="margin-bottom: 6px;">Login Required</h3>
-            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 24px;">Connect your Fyers account to start analyzing NIFTY 50 stocks</p>
-            <a href="/auth/login" class="btn btn-primary" style="display: inline-block; padding: 14px 40px; font-size: 16px; text-decoration: none; border-radius: 12px;">
-                🔐 Login with Fyers
-            </a>
-            {% else %}
-            <h3 style="margin-bottom: 6px;">Fyers Login Opened</h3>
-            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">After logging in, copy the full URL from the browser and paste it below</p>
+            <h3 style="margin-bottom: 6px;">Connect to Fyers</h3>
+            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">Click login, sign in to Fyers, then paste the redirect URL below</p>
+            <button class="btn btn-primary" id="loginBtn" onclick="openFyersLogin()" style="padding: 12px 32px; font-size: 15px; margin-bottom: 16px; cursor: pointer;">
+                🔐 Open Fyers Login
+            </button>
             <div style="display: flex; gap: 8px;">
                 <input type="text" id="authUrlInput" placeholder="Paste the redirect URL here..." 
                     style="flex:1; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 12px 16px; border-radius: 10px; font-size: 14px; outline: none;"
                     oninput="autoConnect(this.value)">
                 <button class="btn btn-primary" id="connectBtn" onclick="connectNow()">Connect</button>
             </div>
-            {% endif %}
             <div id="connectMsg" style="margin-top: 12px; font-size: 13px;"></div>
         </div>
         {% else %}
@@ -607,6 +602,25 @@
         // Set today as default date
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('analysisDate').value = today;
+
+        // ─── Open Fyers Login in new tab ─────────────────
+        async function openFyersLogin() {
+            const btn = document.getElementById('loginBtn');
+            btn.innerHTML = '⏳ Loading...';
+            btn.disabled = true;
+            try {
+                const res = await fetch('/auth/login');
+                const data = await res.json();
+                if (data.auth_url) {
+                    window.open(data.auth_url, '_blank');
+                    btn.innerHTML = '✅ Opened — Now paste URL below';
+                    document.getElementById('authUrlInput').focus();
+                }
+            } catch(e) {
+                btn.innerHTML = '🔐 Open Fyers Login';
+                btn.disabled = false;
+            }
+        }
 
         // ─── Auto-connect when URL is pasted ─────────────────
         let connecting = false;

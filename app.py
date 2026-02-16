@@ -19,10 +19,8 @@ APP_ID = os.environ.get("FYERS_APP_ID", "HTEDSURO6P-100")
 SECRET_ID = os.environ.get("FYERS_SECRET_ID", "6E0U40KRQT")
 DOMAIN = os.environ.get("DOMAIN", "belezabrasileiro.com")
 
-if PRODUCTION:
-    REDIRECT_URI = f"https://{DOMAIN}/auth/callback"
-else:
-    REDIRECT_URI = os.environ.get("FYERS_REDIRECT_URI", "https://fyersapiapp.com")
+# Always use fyersapiapp.com — Fyers redirects there, user pastes URL back
+REDIRECT_URI = "https://fyersapiapp.com"
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "nifty50_indicators_trade_2026")
@@ -240,7 +238,7 @@ def index():
 
 @app.route("/auth/login")
 def auth_login():
-    """Redirect user to Fyers login. Works on both local and production."""
+    """Return Fyers login URL. Frontend opens it in new tab."""
     global fyers_client
     if fyers_client is None:
         fyers_client = FyersClient(APP_ID, SECRET_ID, redirect_uri=REDIRECT_URI)
@@ -255,7 +253,7 @@ def auth_login():
         nonce=""
     )
     auth_url = session_model.generate_authcode()
-    return redirect(auth_url)
+    return jsonify({"auth_url": auth_url})
 
 
 @app.route("/auth/callback")
