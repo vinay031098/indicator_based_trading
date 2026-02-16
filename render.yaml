@@ -1,0 +1,22 @@
+# ─── Render.com Blueprint (Free Tier) ───
+# Deploy: Connect GitHub repo → Render auto-detects this file
+services:
+  - type: web
+    name: nifty50-dashboard
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: PRODUCTION
+        value: "1"
+      - key: DOMAIN
+        sync: false  # Set manually in dashboard
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FYERS_APP_ID
+        sync: false  # Set manually in dashboard
+      - key: FYERS_SECRET_ID
+        sync: false  # Set manually in dashboard
+      - key: PYTHON_VERSION
+        value: "3.11.6"

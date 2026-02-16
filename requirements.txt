@@ -1,0 +1,7 @@
+fyers-apiv3
+pandas
+numpy
+requests
+python-dotenv
+gunicorn
+flask

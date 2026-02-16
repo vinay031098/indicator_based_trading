@@ -1,0 +1,27 @@
+# Systemd service for NIFTY 50 Trading Dashboard
+# Copy to: /etc/systemd/system/indicators.service
+# Then:    sudo systemctl daemon-reload
+#          sudo systemctl enable indicators
+#          sudo systemctl start indicators
+
+[Unit]
+Description=NIFTY 50 Trading Indicator Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/indicators_trade
+EnvironmentFile=/opt/indicators_trade/.env
+ExecStart=/opt/indicators_trade/venv/bin/gunicorn wsgi:app --bind 127.0.0.1:5000 --workers 2 --timeout 120
+Restart=always
+RestartSec=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=indicators
+
+[Install]
+WantedBy=multi-user.target

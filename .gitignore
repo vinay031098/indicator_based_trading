@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.production
+.fyers_token
+fyersApi.log
+fyersRequests.log
+*.bak
