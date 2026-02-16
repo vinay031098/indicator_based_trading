@@ -1,150 +1,218 @@
 """
-LLM Stock Analyzer — Uses Google Gemini (free) to analyze stock indicators
+LLM Stock Analyzer — Uses Google Gemini to analyze stock indicators
 and recommend Buy / Hold / Avoid for next trading day.
+
+Sends stocks in batches of 10 to avoid output truncation, then merges results.
+Includes JSON repair for partial/malformed responses.
 """
 
 import os
 import json
+import re
+import time
 import requests
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyBIl0FszcAAYd7YAR8MPsmhDGLu8S2mVU0")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+
+BATCH_SIZE = 10          # stocks per API call — keeps output short & reliable
+MAX_RETRIES = 2          # retry a batch on failure
 
 
-def build_prompt(stocks_data):
-    """Build a prompt with all stock indicator data for LLM analysis."""
-    
-    prompt = """You are an expert Indian stock market technical analyst. Analyze the following NIFTY 50 stocks based on their technical indicators for NEXT TRADING DAY action.
+# ─── JSON repair helpers ──────────────────────────────────────────
 
-For each stock, give:
-1. **Action**: BUY, HOLD, or AVOID
-2. **Confidence**: HIGH, MEDIUM, or LOW
-3. **Reason**: 1-2 sentence explanation using the indicator data
-4. **Target**: Expected price target if BUY
-5. **Stoploss**: Suggested stoploss if BUY
+def _repair_json(text):
+    """Try to fix common JSON issues from LLM output."""
+    text = text.strip()
 
-IMPORTANT RULES:
-- BUY only if multiple strong bullish signals align (score >= 5, RSI < 45, MACD bullish, good volume)
-- AVOID if bearish signals dominate (RSI > 70, MACD bearish, below 200-SMA, high ADX downtrend)
-- HOLD if mixed signals
-- Be conservative. Only recommend BUY with HIGH confidence when at least 4-5 indicators agree
-- Consider risk/reward ratio using ATR for stoploss calculation
+    # Strip markdown code fences
+    if text.startswith("```"):
+        text = re.sub(r"^```[a-z]*\n?", "", text)
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
 
-Here are the stocks with their technical indicators:
+    # Try parsing as-is first
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
 
-"""
-    for stock in stocks_data:
-        if stock is None:
+    # Fix trailing commas before ] or }
+    text = re.sub(r",\s*([}\]])", r"\1", text)
+
+    # If the array is truncated (missing closing ]), try to close it
+    # Find the last complete object (ends with })
+    if text.startswith("[") and not text.rstrip().endswith("]"):
+        last_brace = text.rfind("}")
+        if last_brace > 0:
+            text = text[:last_brace + 1] + "]"
+
+    # If a string value is unterminated, close it
+    # Pattern: "key": "value without closing quote
+    text = re.sub(r'"([^"]*?)$', r'"\1"', text)
+
+    # Try again
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Last resort: extract individual JSON objects with regex
+    objects = []
+    for m in re.finditer(r'\{[^{}]*\}', text):
+        try:
+            obj = json.loads(m.group())
+            if "name" in obj and "action" in obj:
+                objects.append(obj)
+        except json.JSONDecodeError:
             continue
-        prompt += f"""
-═══ {stock['name']} (₹{stock['price']}) ═══
-Change: {stock['change_pct']:.2f}% | Score: {stock['score']}/30
-RSI(14): {stock['rsi']} | MACD: {stock['macd']} (Signal: {stock['macd_signal']}, Hist: {stock['macd_hist']})
-Stochastic %K: {stock['stoch_k']} %D: {stock.get('stoch_d', 'N/A')}
-SMA20: {stock['sma20']} | SMA50: {stock['sma50']} | SMA200: {stock['sma200']}
-EMA9: {stock.get('ema9', 'N/A')} | EMA21: {stock.get('ema21', 'N/A')}
-Bollinger: Lower={stock['bb_lower']} Upper={stock['bb_upper']} Width={stock.get('bb_width', 'N/A')}%
-52W High: {stock['w52_high']} | 52W Low: {stock['w52_low']} | Dist from High: {stock['dist_52w']}%
-Volume: {stock['volume']:,} | Avg Vol: {stock['avg_volume']:,} | Vol Ratio: {stock['vol_ratio']}x
-ATR: {stock.get('atr', 'N/A')} ({stock.get('atr_pct', 'N/A')}%) | ADX: {stock.get('adx', 'N/A')} (+DI: {stock.get('plus_di', 'N/A')} -DI: {stock.get('minus_di', 'N/A')})
-CCI: {stock.get('cci', 'N/A')} | Williams %R: {stock.get('williams_r', 'N/A')} | MFI: {stock.get('mfi', 'N/A')}
-VWAP: {stock.get('vwap', 'N/A')} | ROC: {stock.get('roc', 'N/A')}% | CMF: {stock.get('cmf', 'N/A')}
-Ichimoku: Tenkan={stock.get('ichimoku_tenkan', 'N/A')} Kijun={stock.get('ichimoku_kijun', 'N/A')}
-Pivot: PP={stock.get('pivot', 'N/A')} S1={stock.get('pivot_s1', 'N/A')} R1={stock.get('pivot_r1', 'N/A')}
-Signals: {', '.join([r['icon'] + ' ' + r['text'] for r in stock.get('reasons', [])])}
-"""
+    if objects:
+        return objects
 
-    prompt += """
+    return None
 
-Respond in STRICT JSON format only. No markdown, no code blocks, no explanation outside JSON.
-Return a JSON array of objects, one per stock:
 
-[
-  {
-    "name": "RELIANCE",
-    "action": "BUY",
-    "confidence": "HIGH",
-    "reason": "RSI oversold at 28 with MACD bullish crossover and volume spike. Strong support at 200-SMA.",
-    "target": 2850,
-    "stoploss": 2720,
-    "risk_reward": "1:2.5"
-  },
-  ...
-]
+# ─── Prompt builder (for a batch) ─────────────────────────────────
 
-Include ALL stocks in the response. Return ONLY the JSON array, nothing else.
-"""
-    return prompt
+def _build_batch_prompt(stocks_batch):
+    """Build a concise prompt for a small batch of stocks."""
 
+    header = (
+        "You are an expert Indian stock market technical analyst.\n"
+        "Analyze these stocks for NEXT TRADING DAY.\n\n"
+        "Rules:\n"
+        "- BUY only if 4+ bullish signals align (RSI<45, MACD bullish, above 200-SMA, good volume)\n"
+        "- AVOID if bearish (RSI>70, MACD bearish, below 200-SMA)\n"
+        "- HOLD if mixed signals\n"
+        "- Keep reason to 1 SHORT sentence\n\n"
+        "Stocks:\n\n"
+    )
+
+    for s in stocks_batch:
+        header += (
+            f"[{s['name']}] ₹{s['price']} chg={s['change_pct']:.1f}% score={s['score']}/30 "
+            f"RSI={s['rsi']} MACD={s['macd']}(sig={s['macd_signal']},hist={s['macd_hist']}) "
+            f"StochK={s['stoch_k']} "
+            f"SMA20={s['sma20']} SMA50={s['sma50']} SMA200={s['sma200']} "
+            f"BB={s['bb_lower']}-{s['bb_upper']} "
+            f"52WH={s['w52_high']} 52WL={s['w52_low']} "
+            f"VolR={s['vol_ratio']}x "
+            f"ATR={s.get('atr','?')} ADX={s.get('adx','?')} "
+            f"CCI={s.get('cci','?')} WillR={s.get('williams_r','?')} "
+            f"MFI={s.get('mfi','?')} ROC={s.get('roc','?')}%\n"
+        )
+
+    header += (
+        "\nReturn ONLY a JSON array. No markdown. No explanation.\n"
+        "Each object: {\"name\":\"SYMBOL\",\"action\":\"BUY|HOLD|AVOID\","
+        "\"confidence\":\"HIGH|MEDIUM|LOW\",\"reason\":\"short reason\","
+        "\"target\":number_or_0,\"stoploss\":number_or_0,\"risk_reward\":\"ratio_or_NA\"}\n"
+    )
+    return header
+
+
+# ─── Single batch API call ────────────────────────────────────────
+
+def _call_gemini(prompt):
+    """Call Gemini API and return parsed JSON list or None."""
+
+    resp = requests.post(
+        f"{GEMINI_URL}?key={GEMINI_API_KEY}",
+        json={
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.2,
+                "maxOutputTokens": 4096,
+                "responseMimeType": "application/json"
+            }
+        },
+        timeout=60
+    )
+
+    if resp.status_code != 200:
+        print(f"  ⚠ Gemini API {resp.status_code}: {resp.text[:200]}")
+        return None
+
+    data = resp.json()
+
+    # Check for safety / finish reason issues
+    candidate = (data.get("candidates") or [{}])[0]
+    finish = candidate.get("finishReason", "")
+    if finish not in ("STOP", ""):
+        print(f"  ⚠ Gemini finishReason: {finish}")
+
+    text = candidate.get("content", {}).get("parts", [{}])[0].get("text", "")
+    if not text:
+        return None
+
+    parsed = _repair_json(text)
+    if parsed is None:
+        print(f"  ⚠ JSON repair failed. Raw ({len(text)} chars): {text[:300]}")
+    return parsed
+
+
+# ─── Main entry point ────────────────────────────────────────────
 
 def analyze_with_llm(stocks_data):
-    """Send stock data to Gemini and get buy/hold/avoid recommendations."""
-    
+    """Send stock data to Gemini in batches, merge results."""
+
     if not GEMINI_API_KEY:
         return {"error": "GEMINI_API_KEY not set. Add it in Render environment variables."}
-    
-    # Filter out None stocks
-    valid_stocks = [s for s in stocks_data if s is not None]
-    
-    if not valid_stocks:
+
+    valid = [s for s in stocks_data if s is not None]
+    if not valid:
         return {"error": "No stock data to analyze"}
-    
-    prompt = build_prompt(valid_stocks)
-    
-    try:
-        response = requests.post(
-            f"{GEMINI_URL}?key={GEMINI_API_KEY}",
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": 0.3,
-                    "maxOutputTokens": 8192,
-                    "responseMimeType": "application/json"
-                }
-            },
-            timeout=60
-        )
-        
-        if response.status_code != 200:
-            return {"error": f"Gemini API error: {response.status_code} - {response.text[:200]}"}
-        
-        data = response.json()
-        
-        # Extract text from Gemini response
-        text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-        
-        if not text:
-            return {"error": "Empty response from Gemini"}
-        
-        # Parse JSON response
-        # Clean up response — remove markdown code blocks if present
-        text = text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
-        
-        recommendations = json.loads(text)
-        
-        # Build a lookup map
-        rec_map = {}
-        for rec in recommendations:
-            name = rec.get("name", "").upper().strip()
-            rec_map[name] = {
-                "action": rec.get("action", "HOLD"),
-                "confidence": rec.get("confidence", "LOW"),
-                "reason": rec.get("reason", ""),
-                "target": rec.get("target", 0),
-                "stoploss": rec.get("stoploss", 0),
-                "risk_reward": rec.get("risk_reward", "N/A")
-            }
-        
-        return {"success": True, "recommendations": rec_map}
-        
-    except json.JSONDecodeError as e:
-        return {"error": f"Failed to parse LLM response: {str(e)}", "raw": text[:500] if 'text' in dir() else ""}
-    except requests.exceptions.Timeout:
-        return {"error": "Gemini API timeout. Try again."}
-    except Exception as e:
-        return {"error": f"LLM analysis failed: {str(e)}"}
+
+    # Split into batches
+    batches = [valid[i:i + BATCH_SIZE] for i in range(0, len(valid), BATCH_SIZE)]
+    rec_map = {}
+    errors = []
+
+    print(f"🤖 LLM: analyzing {len(valid)} stocks in {len(batches)} batches...")
+
+    for idx, batch in enumerate(batches):
+        names = [s['name'] for s in batch]
+        print(f"  📦 Batch {idx+1}/{len(batches)}: {', '.join(names)}")
+
+        prompt = _build_batch_prompt(batch)
+        result = None
+
+        for attempt in range(MAX_RETRIES + 1):
+            result = _call_gemini(prompt)
+            if result and isinstance(result, list) and len(result) > 0:
+                break
+            if attempt < MAX_RETRIES:
+                print(f"  🔄 Retry {attempt+1} for batch {idx+1}...")
+                time.sleep(1)
+
+        if result and isinstance(result, list):
+            for rec in result:
+                name = rec.get("name", "").upper().strip()
+                if name:
+                    rec_map[name] = {
+                        "action": rec.get("action", "HOLD"),
+                        "confidence": rec.get("confidence", "LOW"),
+                        "reason": rec.get("reason", ""),
+                        "target": rec.get("target", 0),
+                        "stoploss": rec.get("stoploss", 0),
+                        "risk_reward": rec.get("risk_reward", "N/A")
+                    }
+            print(f"  ✅ Got {len(result)} recommendations")
+        else:
+            errors.append(f"Batch {idx+1} ({', '.join(names)}) failed")
+            print(f"  ❌ Batch {idx+1} failed after retries")
+
+        # Small delay between batches to respect rate limits
+        if idx < len(batches) - 1:
+            time.sleep(0.5)
+
+    print(f"🤖 LLM done: {len(rec_map)} recommendations, {len(errors)} batch errors")
+
+    if not rec_map:
+        return {"error": "All batches failed. " + "; ".join(errors)}
+
+    result = {"success": True, "recommendations": rec_map}
+    if errors:
+        result["warnings"] = errors
+    return result
