@@ -485,6 +485,53 @@
             text-align: center;
             margin-top: 8px;
         }
+
+        /* ─── AI Recommendation Styles ───────────────────────── */
+        .ai-rec {
+            margin-top: 10px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .ai-rec.BUY {
+            background: linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05));
+            border: 1px solid rgba(34,197,94,0.3);
+        }
+        .ai-rec.HOLD {
+            background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.05));
+            border: 1px solid rgba(245,158,11,0.3);
+        }
+        .ai-rec.AVOID {
+            background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05));
+            border: 1px solid rgba(239,68,68,0.3);
+        }
+        .ai-action {
+            font-weight: 700;
+            font-size: 15px;
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 6px;
+            margin-right: 6px;
+        }
+        .ai-action.BUY { background: var(--green); color: #000; }
+        .ai-action.HOLD { background: var(--yellow); color: #000; }
+        .ai-action.AVOID { background: var(--red); color: #fff; }
+        .ai-confidence {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.1);
+            color: var(--text-muted);
+        }
+        .ai-meta {
+            display: flex;
+            gap: 12px;
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        .ai-meta span { display: flex; align-items: center; gap: 4px; }
     </style>
 </head>
 <body>
@@ -562,6 +609,14 @@
         <button class="filter-tab" data-filter="momentum" onclick="filterStocks('momentum', this)">🚀 Momentum</button>
         <button class="filter-tab" data-filter="golden" onclick="filterStocks('golden', this)">⭐ Golden Cross</button>
         <input type="text" class="search-box" id="searchBox" placeholder="🔍 Search stock..." oninput="searchStocks(this.value)">
+    </div>
+
+    <!-- AI Recommendation Bar (hidden until results) -->
+    <div id="aiBar" style="display: none; padding: 8px 32px; background: var(--card); border-bottom: 1px solid var(--border);">
+        <button id="aiBtn" onclick="getAiRecommendations()" style="background: linear-gradient(135deg, #6c63ff, #3b82f6); color: white; border: none; padding: 10px 24px; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 600;">
+            🤖 Get AI Buy/Sell Recommendations
+        </button>
+        <span id="aiStatus" style="margin-left: 12px; color: var(--text-muted); font-size: 13px;"></span>
     </div>
 
     <!-- Main Content -->
@@ -718,6 +773,7 @@
                 // Show stats and filter bars
                 document.getElementById('statsBar').style.display = 'grid';
                 document.getElementById('filterBar').style.display = 'flex';
+                document.getElementById('aiBar').style.display = 'flex';
 
                 // Hide empty state / auth section
                 const mainContent = document.getElementById('mainContent');
@@ -839,11 +895,112 @@
                                 <div class="indicator-label">Vol Ratio</div>
                             </div>
                         </div>
+                        <div class="indicators" style="margin-top: 8px;">
+                            <div class="indicator">
+                                <div class="indicator-value">${s.adx || '-'}</div>
+                                <div class="indicator-label">ADX</div>
+                            </div>
+                            <div class="indicator">
+                                <div class="indicator-value">${s.cci || '-'}</div>
+                                <div class="indicator-label">CCI</div>
+                            </div>
+                            <div class="indicator">
+                                <div class="indicator-value">${s.mfi || '-'}</div>
+                                <div class="indicator-label">MFI</div>
+                            </div>
+                            <div class="indicator">
+                                <div class="indicator-value">${s.williams_r || '-'}</div>
+                                <div class="indicator-label">Will %R</div>
+                            </div>
+                            <div class="indicator">
+                                <div class="indicator-value">${s.roc || '-'}%</div>
+                                <div class="indicator-label">ROC</div>
+                            </div>
+                            <div class="indicator">
+                                <div class="indicator-value">${s.atr || '-'}</div>
+                                <div class="indicator-label">ATR</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="expand-hint">click to ${s.score >= 0 ? 'expand' : 'collapse'}</div>
+
+                    <!-- AI Recommendation (filled after LLM call) -->
+                    <div class="ai-rec-container" id="ai-${s.name}" style="display:none;"></div>
+
+                    <div class="expand-hint">click to expand</div>
                 </div>
                 `;
             }).join('');
+        }
+
+        // ─── AI Recommendations ──────────────────────────────────
+        let aiRecommendations = {};
+
+        async function getAiRecommendations() {
+            const btn = document.getElementById('aiBtn');
+            const status = document.getElementById('aiStatus');
+
+            if (allResults.length === 0) {
+                alert('Run analysis first!');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '🤖 Analyzing with AI...';
+            status.innerHTML = '⏳ Sending 47 stocks to Gemini AI — this takes ~15 seconds...';
+
+            try {
+                const res = await fetch('/api/llm-analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ stocks: allResults })
+                });
+
+                const data = await res.json();
+
+                if (data.error) {
+                    status.innerHTML = `❌ ${data.error}`;
+                    btn.disabled = false;
+                    btn.innerHTML = '🤖 Retry AI Analysis';
+                    return;
+                }
+
+                aiRecommendations = data.recommendations || {};
+                const buyCount = Object.values(aiRecommendations).filter(r => r.action === 'BUY').length;
+                const holdCount = Object.values(aiRecommendations).filter(r => r.action === 'HOLD').length;
+                const avoidCount = Object.values(aiRecommendations).filter(r => r.action === 'AVOID').length;
+
+                status.innerHTML = `✅ AI Done — <span style="color:var(--green)">${buyCount} BUY</span> · <span style="color:var(--yellow)">${holdCount} HOLD</span> · <span style="color:var(--red)">${avoidCount} AVOID</span>`;
+                btn.innerHTML = '🤖 AI Done ✓';
+
+                // Render AI badges on each card
+                for (const [name, rec] of Object.entries(aiRecommendations)) {
+                    const el = document.getElementById(`ai-${name}`);
+                    if (el) {
+                        el.style.display = 'block';
+                        let metaHtml = '';
+                        if (rec.action === 'BUY' && rec.target) {
+                            metaHtml = `
+                                <div class="ai-meta">
+                                    <span>🎯 Target: ₹${Number(rec.target).toLocaleString('en-IN')}</span>
+                                    <span>🛡️ SL: ₹${Number(rec.stoploss).toLocaleString('en-IN')}</span>
+                                    <span>⚖️ R:R ${rec.risk_reward}</span>
+                                </div>`;
+                        }
+                        el.innerHTML = `
+                            <div class="ai-rec ${rec.action}">
+                                <span class="ai-action ${rec.action}">${rec.action === 'BUY' ? '🟢 BUY' : rec.action === 'AVOID' ? '🔴 AVOID' : '🟡 HOLD'}</span>
+                                <span class="ai-confidence">${rec.confidence} confidence</span>
+                                <div style="margin-top: 6px; color: var(--text); font-size: 12px;">${rec.reason}</div>
+                                ${metaHtml}
+                            </div>`;
+                    }
+                }
+
+            } catch (err) {
+                status.innerHTML = `❌ Error: ${err.message}`;
+                btn.disabled = false;
+                btn.innerHTML = '🤖 Retry AI Analysis';
+            }
         }
 
         // ─── Filters ────────────────────────────────────────────

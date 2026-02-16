@@ -12,6 +12,7 @@ import os
 from datetime import datetime, timedelta
 from flyers_integration import FyersClient, NIFTY_50_FYERS
 from fyers_apiv3 import fyersModel
+from llm_analyzer import analyze_with_llm
 
 # ─── Config (env-based for local vs production) ─────────────────────────
 PRODUCTION = os.environ.get("PRODUCTION", "0") == "1"
@@ -747,6 +748,23 @@ def api_analyze():
         "skipped": skipped,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     })
+
+
+@app.route("/api/llm-analyze", methods=["POST"])
+def api_llm_analyze():
+    """Send analyzed stock data to LLM for buy/hold/avoid recommendations."""
+    data = request.get_json()
+    stocks = data.get("stocks", [])
+
+    if not stocks:
+        return jsonify({"error": "No stock data provided"}), 400
+
+    result = analyze_with_llm(stocks)
+
+    if "error" in result:
+        return jsonify(result), 500
+
+    return jsonify(result)
 
 
 @app.route("/api/status")
