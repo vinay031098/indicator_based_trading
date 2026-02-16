@@ -33,6 +33,86 @@
             min-height: 100vh;
         }
 
+        /* ─── Login Screen ────────────────────────────────────── */
+        .login-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-overlay.hidden { display: none; }
+        .login-box {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 40px 36px;
+            width: 380px;
+            max-width: 90vw;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .login-box .login-icon { font-size: 48px; margin-bottom: 12px; }
+        .login-box h2 {
+            font-size: 22px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6c63ff, #3b82f6);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 6px;
+        }
+        .login-box .login-sub {
+            color: var(--text-muted);
+            font-size: 13px;
+            margin-bottom: 24px;
+        }
+        .login-field {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 14px;
+            margin-bottom: 12px;
+            outline: none;
+            transition: border 0.2s;
+        }
+        .login-field:focus { border-color: var(--accent); }
+        .login-field::placeholder { color: var(--text-muted); }
+        .login-btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, var(--accent), #3b82f6);
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 6px;
+            transition: opacity 0.2s;
+        }
+        .login-btn:hover { opacity: 0.9; }
+        .login-btn:active { transform: scale(0.98); }
+        .login-error {
+            color: var(--red);
+            font-size: 13px;
+            margin-top: 12px;
+            min-height: 18px;
+        }
+        .login-shake {
+            animation: shake 0.4s ease;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); }
+        }
+
         /* ─── Header ─────────────────────────────────────────── */
         .header {
             background: linear-gradient(135deg, #1a1d29 0%, #0f1117 100%);
@@ -539,6 +619,24 @@
     </style>
 </head>
 <body>
+    <!-- Login Screen -->
+    <div class="login-overlay" id="loginOverlay">
+        <div class="login-box" id="loginBox">
+            <div class="login-icon">🔐</div>
+            <h2>Trading Dashboard</h2>
+            <p class="login-sub">Enter your credentials to continue</p>
+            <form onsubmit="return handleLogin(event)">
+                <input type="text" class="login-field" id="loginUser" placeholder="Username" autocomplete="off" autofocus>
+                <input type="password" class="login-field" id="loginPass" placeholder="Password">
+                <button type="submit" class="login-btn" id="loginBtn">🔓 Login</button>
+            </form>
+            <div class="login-error" id="loginError"></div>
+        </div>
+    </div>
+
+    <!-- Dashboard (hidden until login) -->
+    <div id="dashboardContainer" style="display:none;">
+
     <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="spinner"></div>
@@ -1147,6 +1245,42 @@
             renderStocks(filtered);
         }
 
+    </script>
+
+    </div><!-- /dashboardContainer -->
+
+    <script>
+        // ─── Login Logic ─────────────────────────────────────────
+        (function() {
+            // Check if already logged in this session
+            if (sessionStorage.getItem('dash_authed') === '1') {
+                document.getElementById('loginOverlay').classList.add('hidden');
+                document.getElementById('dashboardContainer').style.display = '';
+            }
+        })();
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const user = document.getElementById('loginUser').value.trim();
+            const pass = document.getElementById('loginPass').value;
+            const errEl = document.getElementById('loginError');
+            const box = document.getElementById('loginBox');
+
+            if (user === 'Trader' && pass === 'abcd@1234') {
+                sessionStorage.setItem('dash_authed', '1');
+                errEl.textContent = '';
+                document.getElementById('loginOverlay').classList.add('hidden');
+                document.getElementById('dashboardContainer').style.display = '';
+            } else {
+                errEl.textContent = '❌ Invalid username or password';
+                box.classList.remove('login-shake');
+                void box.offsetWidth; // reflow to restart animation
+                box.classList.add('login-shake');
+                document.getElementById('loginPass').value = '';
+                document.getElementById('loginPass').focus();
+            }
+            return false;
+        }
     </script>
 </body>
 </html>
