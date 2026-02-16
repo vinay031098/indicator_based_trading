@@ -1,6 +1,7 @@
 """
-NIFTY 50 Indicator-Based Trading Dashboard — Flask Backend
+NSE Indicator-Based Trading Dashboard — Flask Backend
 Provides: Authentication, date-based analysis, stock data via API endpoints
+Supports: NIFTY 50, NIFTY 100, NIFTY 200, NIFTY 500, and ALL NSE stocks (~2100)
 """
 
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
@@ -12,7 +13,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()  # Load .env file (GITHUB_TOKEN, GEMINI_API_KEY, etc.)
 from datetime import datetime, timedelta
-from flyers_integration import FyersClient, NIFTY_50_FYERS
+from flyers_integration import FyersClient, NIFTY_50_FYERS, get_symbols_for_category, fetch_all_nse_equity_symbols
 from fyers_apiv3 import fyersModel
 from llm_analyzer import analyze_with_llm
 
@@ -698,7 +699,7 @@ def auth_connect():
 
 @app.route("/api/analyze", methods=["POST"])
 def api_analyze():
-    """Run analysis for given date range. Returns JSON with all stock data."""
+    """Run analysis for given date range and stock category. Returns JSON with all stock data."""
     global fyers_client
     if fyers_client is None or fyers_client.access_token is None:
         return jsonify({"error": "Not authenticated. Please login first."}), 401
@@ -706,6 +707,7 @@ def api_analyze():
     data = request.get_json()
     analysis_date = data.get("date", datetime.now().strftime("%Y-%m-%d"))
     min_score = int(data.get("min_score", 2))
+    category = data.get("category", "nifty50")
 
     # Calculate days of history needed (from 1 year before the date)
     try:
@@ -717,8 +719,20 @@ def api_analyze():
     # We need at least 252 trading days (~1 year) of data before the target date
     total_days = days_from_now + 365
 
-    # Fetch all NIFTY 50 data
-    all_data = fyers_client.get_all_nifty50_data(resolution="D", days=total_days)
+    # Get symbols for selected category
+    symbols = get_symbols_for_category(category)
+    category_label = {
+        'nifty50': 'NIFTY 50',
+        'nifty100': 'NIFTY 100',
+        'nifty200': 'NIFTY 200',
+        'nifty500': 'NIFTY 500',
+        'all': f'All NSE ({len(symbols)})'
+    }.get(category, 'NIFTY 50')
+
+    print(f"\n🔍 Analyzing {category_label} stocks for {analysis_date}...")
+
+    # Fetch stock data
+    all_data = fyers_client.get_stock_data(symbols, resolution="D", days=total_days)
 
     results = []
     skipped = []
@@ -742,6 +756,8 @@ def api_analyze():
 
     return jsonify({
         "date": analysis_date,
+        "category": category,
+        "category_label": category_label,
         "total_stocks": len(results),
         "qualified_count": len(qualified),
         "min_score": min_score,
@@ -781,7 +797,7 @@ if __name__ == "__main__":
     url = f"https://{DOMAIN}" if PRODUCTION else "http://127.0.0.1:5000"
 
     print("\n" + "=" * 60)
-    print(f"  NIFTY 50 Trading Indicator Dashboard [{mode}]")
+    print(f"  NSE Trading Indicator Dashboard [{mode}]")
     print(f"  URL: {url}")
     print(f"  Redirect: {REDIRECT_URI}")
     print("=" * 60)

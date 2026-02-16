@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NIFTY 50 Trading Dashboard</title>
+    <title>NSE Trading Indicator Dashboard</title>
     <style>
         :root {
             --bg: #0f1117;
@@ -542,7 +542,7 @@
     <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="spinner"></div>
-        <div class="loading-text" id="loadingText">Fetching 48 NIFTY 50 stocks from Fyers...</div>
+        <div class="loading-text" id="loadingText">Fetching stocks from Fyers...</div>
         <div class="loading-progress"><div class="loading-progress-bar"></div></div>
     </div>
 
@@ -551,7 +551,7 @@
         <div class="header-top">
             <div class="logo">
                 <span class="logo-icon">📊</span>
-                <h1>NIFTY 50 Indicator Dashboard</h1>
+                <h1>NSE Indicator Dashboard</h1>
             </div>
             <div class="auth-status {{ 'ok' if authenticated else 'no' }}" id="authStatus">
                 <span class="status-dot {{ 'ok' if authenticated else 'no' }}" id="statusDot"></span>
@@ -563,6 +563,16 @@
             <div class="control-group">
                 <label>📅 Analysis Date</label>
                 <input type="date" id="analysisDate" value="{{ today }}">
+            </div>
+            <div class="control-group">
+                <label>🏛️ Stock Universe</label>
+                <select id="stockCategory" style="min-width: 200px;">
+                    <option value="nifty50">NIFTY 50 (~48 stocks)</option>
+                    <option value="nifty100">NIFTY 100 (~98 stocks)</option>
+                    <option value="nifty200">NIFTY 200 (~200 stocks)</option>
+                    <option value="nifty500">NIFTY 500 (~500 stocks)</option>
+                    <option value="all">📊 All NSE (~2100 stocks)</option>
+                </select>
             </div>
             <div class="control-group">
                 <label>🎯 Min Score</label>
@@ -662,7 +672,7 @@
         <div class="empty-state" id="emptyState">
             <div class="icon">✅</div>
             <h3>Connected — Ready to Analyze</h3>
-            <p>Select a date and click "Analyze" to scan NIFTY 50 stocks</p>
+            <p>Select a stock universe, date, and click "Analyze" to scan stocks</p>
         </div>
         {% endif %}
     </div>
@@ -738,7 +748,7 @@
                         document.getElementById('connectingState').innerHTML = `
                             <div style="font-size: 40px; margin-bottom: 12px;">✅</div>
                             <h3>Connected — Ready to Analyze</h3>
-                            <p style="color: var(--text-muted); font-size: 14px;">Select a date above and click "Analyze" to scan NIFTY 50 stocks</p>
+                            <p style="color: var(--text-muted); font-size: 14px;">Select a stock universe and date above, then click "Analyze"</p>
                         `;
                     }, 500);
                 } else {
@@ -758,7 +768,14 @@
         async function runAnalysis() {
             const date = document.getElementById('analysisDate').value;
             const minScore = document.getElementById('minScore').value;
+            const category = document.getElementById('stockCategory').value;
             const btn = document.getElementById('analyzeBtn');
+
+            // Estimate count for loading text
+            const countMap = { nifty50: '~48', nifty100: '~98', nifty200: '~200', nifty500: '~500', all: '~2100' };
+            const labelMap = { nifty50: 'NIFTY 50', nifty100: 'NIFTY 100', nifty200: 'NIFTY 200', nifty500: 'NIFTY 500', all: 'All NSE' };
+            const timeMap = { nifty50: '~15 sec', nifty100: '~30 sec', nifty200: '~1 min', nifty500: '~2.5 min', all: '~10 min' };
+            document.getElementById('loadingText').innerHTML = `Fetching ${countMap[category] || ''} ${labelMap[category] || ''} stocks from Fyers...<br><span style="font-size:13px;color:var(--text-muted);">Estimated time: ${timeMap[category] || ''}</span>`;
 
             // Show loading
             const overlay = document.getElementById('loadingOverlay');
@@ -770,7 +787,7 @@
                 const res = await fetch('/api/analyze', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ date, min_score: minScore })
+                    body: JSON.stringify({ date, min_score: minScore, category })
                 });
 
                 if (res.status === 401) {
@@ -815,12 +832,23 @@
             document.getElementById('statQualified').textContent = data.qualified_count;
             document.getElementById('statBullish').textContent = allResults.filter(s => s.score >= 10).length;
             document.getElementById('statStrong').textContent = allResults.filter(s => s.score >= 5 && s.score < 10).length;
-            document.getElementById('statDate').textContent = data.date;
-            document.getElementById('statDate').style.fontSize = '16px';
+            document.getElementById('statDate').textContent = `${data.date} · ${data.category_label || 'NIFTY 50'}`;
+            document.getElementById('statDate').style.fontSize = '13px';
         }
 
         // ─── Render Stock Cards ──────────────────────────────────
+        const STOCKS_PER_PAGE = 50;
+        let currentDisplayCount = STOCKS_PER_PAGE;
+        let currentStockList = [];
+
         function renderStocks(stocks) {
+            currentStockList = stocks;
+            currentDisplayCount = STOCKS_PER_PAGE;
+            _renderPage();
+        }
+
+        function _renderPage() {
+            const stocks = currentStockList;
             const grid = document.getElementById('stockGrid');
             if (stocks.length === 0) {
                 grid.innerHTML = `
@@ -830,10 +858,15 @@
                         <p>Try adjusting the minimum score or filter</p>
                     </div>
                 `;
+                // Remove load more if exists
+                const existingBtn = document.getElementById('loadMoreBtn');
+                if (existingBtn) existingBtn.remove();
                 return;
             }
 
-            grid.innerHTML = stocks.map(s => {
+            const visibleStocks = stocks.slice(0, currentDisplayCount);
+
+            grid.innerHTML = visibleStocks.map(s => {
                 const scoreTier = s.score >= 15 ? 'score-tier-top' : s.score >= 10 ? 'score-tier-high' : s.score >= 7 ? 'score-tier-good' : s.score >= 4 ? 'score-tier-mid' : s.score >= 2 ? 'score-tier-low' : 'score-tier-weak';
                 const scoreClass = s.score >= 12 ? 'score-high' : s.score >= 7 ? 'score-med' : s.score >= 4 ? 'score-low' : 'score-none';
                 const changeClass = s.change >= 0 ? 'up' : 'down';
@@ -971,6 +1004,28 @@
                 </div>
                 `;
             }).join('');
+
+            // Add/remove "Load More" button
+            let loadMoreBtn = document.getElementById('loadMoreBtn');
+            if (currentDisplayCount < stocks.length) {
+                const remaining = stocks.length - currentDisplayCount;
+                if (!loadMoreBtn) {
+                    loadMoreBtn = document.createElement('div');
+                    loadMoreBtn.id = 'loadMoreBtn';
+                    loadMoreBtn.style.cssText = 'text-align:center; padding:20px; grid-column:1/-1;';
+                    grid.parentNode.insertBefore(loadMoreBtn, grid.nextSibling);
+                }
+                loadMoreBtn.innerHTML = `<button onclick="loadMoreStocks()" class="btn btn-primary" style="min-width:200px;">📋 Load More (${remaining} remaining)</button>
+                    <div style="color:var(--text-muted); font-size:12px; margin-top:6px;">Showing ${currentDisplayCount} of ${stocks.length}</div>`;
+            } else if (loadMoreBtn) {
+                loadMoreBtn.remove();
+            }
+        }
+
+        function loadMoreStocks() {
+            currentDisplayCount += STOCKS_PER_PAGE;
+            _renderPage();
+            // Scroll to the new stocks area
         }
 
         // ─── AI Recommendations ──────────────────────────────────

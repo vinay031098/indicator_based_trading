@@ -7,6 +7,7 @@ Docs: https://myapi.fyers.in/docsv3
 
 import webbrowser
 import time
+import urllib.request
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -28,6 +29,112 @@ NIFTY_50_FYERS = [
     'NSE:BEL-EQ', 'NSE:GODREJCP-EQ', 'NSE:TATACONSUM-EQ',
     'NSE:ONGC-EQ', 'NSE:M&M-EQ', 'NSE:CIPLA-EQ', 'NSE:BRITANNIA-EQ', 'NSE:HINDALCO-EQ', 'NSE:TATASTEEL-EQ'
 ]
+
+# ─── NIFTY 100 additional symbols (beyond NIFTY 50) ─────────────────────
+NIFTY_100_EXTRA = [
+    'NSE:ADANIENT-EQ', 'NSE:ADANIGREEN-EQ', 'NSE:AMBUJACEM-EQ', 'NSE:ATGL-EQ',
+    'NSE:BAJAJHLDNG-EQ', 'NSE:BANKBARODA-EQ', 'NSE:BERGEPAINT-EQ', 'NSE:BOSCHLTD-EQ',
+    'NSE:CANBK-EQ', 'NSE:CHOLAFIN-EQ', 'NSE:COLPAL-EQ', 'NSE:DLF-EQ',
+    'NSE:DABUR-EQ', 'NSE:DMART-EQ', 'NSE:GAIL-EQ', 'NSE:GODREJPROP-EQ',
+    'NSE:HAL-EQ', 'NSE:HDFCLIFE-EQ', 'NSE:ICICIGI-EQ', 'NSE:ICICIPRULI-EQ',
+    'NSE:INDIGO-EQ', 'NSE:IOC-EQ', 'NSE:IRCTC-EQ', 'NSE:JIOFIN-EQ',
+    'NSE:JSWENERGY-EQ', 'NSE:LICI-EQ', 'NSE:LODHA-EQ', 'NSE:MARICO-EQ',
+    'NSE:NHPC-EQ', 'NSE:PIDILITIND-EQ', 'NSE:PFC-EQ', 'NSE:PNB-EQ',
+    'NSE:RECLTD-EQ', 'NSE:SBICARD-EQ', 'NSE:SBILIFE-EQ', 'NSE:SIEMENS-EQ',
+    'NSE:SRF-EQ', 'NSE:TATAPOWER-EQ', 'NSE:TORNTPHARM-EQ', 'NSE:TRENT-EQ',
+    'NSE:UNIONBANK-EQ', 'NSE:VBL-EQ', 'NSE:ZOMATO-EQ', 'NSE:ZYDUSLIFE-EQ',
+    'NSE:ABB-EQ', 'NSE:MANKIND-EQ', 'NSE:MAXHEALTH-EQ', 'NSE:PAYTM-EQ',
+    'NSE:TVSMOTOR-EQ', 'NSE:INDIANB-EQ'
+]
+
+# ─── Combined index lists ───────────────────────────────────────────────
+NIFTY_100_FYERS = NIFTY_50_FYERS + NIFTY_100_EXTRA
+
+# ─── Symbol master cache ────────────────────────────────────────────────
+_all_nse_symbols_cache = None
+_cache_timestamp = None
+SYMBOL_MASTER_URL = "https://public.fyers.in/sym_details/NSE_CM.csv"
+CACHE_DURATION = 86400  # 24 hours
+
+
+def fetch_all_nse_equity_symbols() -> List[str]:
+    """
+    Download Fyers symbol master CSV and extract all NSE equity symbols.
+    Only includes segment=0 (equities), suffix=-EQ (not ETFs, bonds, etc.)
+    Caches results for 24 hours.
+    Returns: list of symbols like ['NSE:RELIANCE-EQ', 'NSE:TCS-EQ', ...]
+    """
+    global _all_nse_symbols_cache, _cache_timestamp
+
+    now = time.time()
+    if _all_nse_symbols_cache and _cache_timestamp and (now - _cache_timestamp) < CACHE_DURATION:
+        return _all_nse_symbols_cache
+
+    try:
+        print("📥 Downloading NSE symbol master from Fyers...")
+        response = urllib.request.urlopen(SYMBOL_MASTER_URL, timeout=30)
+        data = response.read().decode('utf-8')
+        lines = data.strip().split('\n')
+
+        eq_stocks = []
+        for line in lines:
+            parts = line.split(',')
+            # Find NSE:XXX-EQ symbol in the row
+            symbol = None
+            for part in parts:
+                part = part.strip()
+                if part.startswith('NSE:') and part.endswith('-EQ'):
+                    symbol = part
+                    break
+            if not symbol:
+                continue
+
+            # segment: 0 = equity stocks, 9 = ETFs
+            try:
+                segment = int(parts[2].strip())
+            except (ValueError, IndexError):
+                continue
+
+            if segment == 0:
+                eq_stocks.append(symbol)
+
+        eq_stocks.sort()
+        _all_nse_symbols_cache = eq_stocks
+        _cache_timestamp = now
+        print(f"✅ Found {len(eq_stocks)} NSE equity stocks")
+        return eq_stocks
+
+    except Exception as e:
+        print(f"⚠️  Failed to fetch symbol master: {e}")
+        if _all_nse_symbols_cache:
+            print("   Using cached symbols")
+            return _all_nse_symbols_cache
+        # Fallback to NIFTY 50
+        print("   Falling back to NIFTY 50 list")
+        return NIFTY_50_FYERS
+
+
+def get_symbols_for_category(category: str) -> List[str]:
+    """
+    Get stock symbols for a given category.
+    Categories: 'nifty50', 'nifty100', 'nifty200', 'nifty500', 'all'
+    """
+    if category == 'nifty50':
+        return NIFTY_50_FYERS
+    elif category == 'nifty100':
+        return NIFTY_100_FYERS
+    elif category == 'nifty200':
+        # Top 200 from all NSE — use first 200 from sorted list
+        all_syms = fetch_all_nse_equity_symbols()
+        # Prioritize NIFTY 100 + next most liquid
+        return NIFTY_100_FYERS + [s for s in all_syms if s not in NIFTY_100_FYERS][:100]
+    elif category == 'nifty500':
+        all_syms = fetch_all_nse_equity_symbols()
+        return NIFTY_100_FYERS + [s for s in all_syms if s not in NIFTY_100_FYERS][:400]
+    elif category == 'all':
+        return fetch_all_nse_equity_symbols()
+    else:
+        return NIFTY_50_FYERS
 
 
 class FyersClient:
@@ -192,21 +299,37 @@ class FyersClient:
         Returns dict: {symbol: DataFrame}
         Rate limit: 10/sec, 200/min — we add small delays.
         """
+        return self.get_stock_data(NIFTY_50_FYERS, resolution=resolution, days=days)
+
+    def get_stock_data(self, symbols: List[str], resolution: str = "D", days: int = 365) -> Dict[str, pd.DataFrame]:
+        """
+        Fetch historical data for a list of stock symbols.
+        Returns dict: {symbol: DataFrame}
+        Rate limit: 10/sec, 200/min — we add delays.
+        """
         stock_data = {}
-        total = len(NIFTY_50_FYERS)
+        total = len(symbols)
+        label = f"{total} stocks"
 
-        print(f"\nDownloading {total} NIFTY 50 stocks from Fyers...")
+        print(f"\n📊 Downloading {label} from Fyers...")
 
-        for i, symbol in enumerate(NIFTY_50_FYERS, 1):
+        for i, symbol in enumerate(symbols, 1):
             df = self.get_history(symbol, resolution=resolution, days=days)
             if df is not None and len(df) > 50:
                 stock_data[symbol] = df
-                print(f"  [{i}/{total}] ✓ {symbol} ({len(df)} candles)")
+                if i % 50 == 0 or i == total or total <= 100:
+                    print(f"  [{i}/{total}] ✓ {symbol} ({len(df)} candles)")
             else:
-                print(f"  [{i}/{total}] ✗ {symbol} (skipped)")
-            time.sleep(0.15)  # respect rate limits (10/sec)
+                if total <= 100:
+                    print(f"  [{i}/{total}] ✗ {symbol} (skipped)")
 
-        print(f"\nGot data for {len(stock_data)}/{total} stocks")
+            # Rate limiting: 10/sec but burst-safe
+            if i % 9 == 0:
+                time.sleep(1.0)  # pause every 9 requests to stay under 10/sec
+            else:
+                time.sleep(0.12)
+
+        print(f"\n✅ Got data for {len(stock_data)}/{total} stocks")
         return stock_data
 
     # ─── Quotes (Real-time) ─────────────────────────────────────────────
