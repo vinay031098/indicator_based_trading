@@ -24,7 +24,7 @@ load_dotenv()  # Ensure .env is loaded
 # ─── API Key ──────────────────────────────────────────────────────
 # GitHub PAT with models:read scope — get one at https://github.com/settings/tokens
 def _get_github_token():
-    return os.environ.get("GITHUB_TOKEN", "")
+    return os.environ.get("GITHUB_TOKEN", "").strip()
 
 # GitHub Models endpoint (OpenAI-compatible)
 GITHUB_MODELS_URL = "https://models.inference.ai.azure.com/chat/completions"
@@ -300,40 +300,53 @@ def analyze_with_llm(stocks_data, fyers_client=None):
         return {"error": "No stock data to analyze"}
 
     # Fetch 15-min candle data for each stock (last 3 trading days)
-    if fyers_client and fyers_client.access_token:
-        print(f">> Fetching 15-min candle data for {len(valid)} stocks...")
-        for i, stock in enumerate(valid):
-            symbol = stock.get('symbol', f"NSE:{stock['name']}-EQ")
-            try:
-                df = fyers_client.get_history(symbol, resolution="15", days=5)
-                if df is not None and len(df) > 0:
-                    candles = []
-                    for idx, row in df.iterrows():
-                        candles.append([
-                            int(idx.timestamp()),
-                            float(row['Open']), float(row['High']),
-                            float(row['Low']), float(row['Close']),
-                            float(row['Volume'])
-                        ])
-                    stock['intraday_summary'] = _summarize_intraday(candles)
-                else:
+    try:
+        if fyers_client and fyers_client.access_token:
+            print(f">> Fetching 15-min candle data for {len(valid)} stocks...")
+            intraday_ok = 0
+            for i, stock in enumerate(valid):
+                symbol = stock.get('symbol', f"NSE:{stock['name']}-EQ")
+                try:
+                    df = fyers_client.get_history(symbol, resolution="15", days=5)
+                    if df is not None and len(df) > 0:
+                        candles = []
+                        for idx, row in df.iterrows():
+                            candles.append([
+                                int(idx.timestamp()),
+                                float(row['Open']), float(row['High']),
+                                float(row['Low']), float(row['Close']),
+                                float(row['Volume'])
+                            ])
+                        stock['intraday_summary'] = _summarize_intraday(candles)
+                        intraday_ok += 1
+                    else:
+                        stock['intraday_summary'] = "No intraday data"
+                except Exception as e:
                     stock['intraday_summary'] = "No intraday data"
-            except Exception as e:
-                stock['intraday_summary'] = "No intraday data"
+                    # If first stock fails with auth error, skip rest
+                    if i == 0 and ('token' in str(e).lower() or 'auth' in str(e).lower() or 'pattern' in str(e).lower()):
+                        print(f"  !! Fyers auth error, skipping 15-min data: {e}")
+                        for s in valid:
+                            s.setdefault('intraday_summary', '')
+                        break
 
-            if (i + 1) % 8 == 0:
-                time.sleep(1.1)
-            else:
-                time.sleep(0.13)
+                if (i + 1) % 8 == 0:
+                    time.sleep(1.1)
+                else:
+                    time.sleep(0.13)
 
-            if (i + 1) % 20 == 0:
-                print(f"  [{i+1}/{len(valid)}] 15-min data fetched...")
+                if (i + 1) % 20 == 0:
+                    print(f"  [{i+1}/{len(valid)}] 15-min data fetched...")
 
-        print(f">> 15-min data ready for {len(valid)} stocks")
-    else:
-        print(">> No Fyers client - skipping 15-min candle data")
+            print(f">> 15-min data ready: {intraday_ok}/{len(valid)} stocks")
+        else:
+            print(">> No Fyers client - skipping 15-min candle data")
+            for stock in valid:
+                stock['intraday_summary'] = ""
+    except Exception as e:
+        print(f"  !! 15-min data fetch failed entirely: {e}")
         for stock in valid:
-            stock['intraday_summary'] = ""
+            stock.setdefault('intraday_summary', '')
 
     # Split into batches
     batches = [valid[i:i + BATCH_SIZE] for i in range(0, len(valid), BATCH_SIZE)]

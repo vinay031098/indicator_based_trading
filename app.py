@@ -800,19 +800,23 @@ def api_analyze():
 def api_llm_analyze():
     """Send analyzed stock data to LLM for buy/hold/avoid recommendations.
     Also fetches 15-min candle data (last 3 days) for chart pattern analysis."""
-    data = request.get_json()
-    stocks = data.get("stocks", [])
+    try:
+        data = request.get_json()
+        stocks = data.get("stocks", [])
 
-    if not stocks:
-        return jsonify({"error": "No stock data provided"}), 400
+        if not stocks:
+            return jsonify({"error": "No stock data provided"}), 400
 
-    # Pass fyers_client so LLM analyzer can fetch 15-min candle data
-    result = analyze_with_llm(stocks, fyers_client=fyers_client)
+        # Pass fyers_client so LLM analyzer can fetch 15-min candle data
+        result = analyze_with_llm(stocks, fyers_client=fyers_client)
 
-    if "error" in result:
-        return jsonify(result), 500
+        if "error" in result:
+            return jsonify(result), 500
 
-    return jsonify(result)
+        return jsonify(result)
+    except Exception as e:
+        print(f"!! LLM analyze error: {e}")
+        return jsonify({"error": f"AI analysis failed: {str(e)}"}), 500
 
 
 @app.route("/api/status")
