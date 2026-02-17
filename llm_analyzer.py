@@ -23,8 +23,8 @@ from datetime import datetime, timedelta
 # ─── API Keys ─────────────────────────────────────────────────────
 # GitHub PAT with models:read scope — get one at https://github.com/settings/tokens
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
-# Gemini fallback
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyBIl0FszcAAYd7YAR8MPsmhDGLu8S2mVU0")
+# Gemini fallback — get a NEW key at https://aistudio.google.com/apikey
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 # GitHub Models endpoint (OpenAI-compatible)
 GITHUB_MODELS_URL = "https://models.inference.ai.azure.com/chat/completions"
