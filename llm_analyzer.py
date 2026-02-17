@@ -34,7 +34,7 @@ GITHUB_MODEL = "gpt-4o-mini"  # free tier, fast, good at JSON
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
 
-BATCH_SIZE = 10
+BATCH_SIZE = 5  # smaller batches — prompts are large with 15-min candle data
 MAX_RETRIES = 2
 
 
@@ -258,10 +258,10 @@ def _call_github_models(prompt):
                     {"role": "user", "content": prompt}
                 ],
                 "temperature": 0.2,
-                "max_tokens": 4096,
+                "max_tokens": 8192,
                 "response_format": {"type": "json_object"}
             },
-            timeout=60
+            timeout=90
         )
 
         if resp.status_code == 429:
@@ -314,11 +314,11 @@ def _call_gemini(prompt):
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
                         "temperature": 0.2,
-                        "maxOutputTokens": 4096,
+                        "maxOutputTokens": 8192,
                         "responseMimeType": "application/json"
                     }
                 },
-                timeout=60
+                timeout=90
             )
 
             if resp.status_code == 429:
@@ -428,9 +428,10 @@ def analyze_with_llm(stocks_data, fyers_client=None):
 
     for idx, batch in enumerate(batches):
         names = [s['name'] for s in batch]
-        print(f"  📦 Batch {idx+1}/{len(batches)}: {', '.join(names)}")
-
         prompt = _build_batch_prompt(batch)
+        prompt_len = len(prompt)
+        print(f"  📦 Batch {idx+1}/{len(batches)}: {', '.join(names)} ({prompt_len} chars)")
+
         result = None
 
         for attempt in range(MAX_RETRIES + 1):
