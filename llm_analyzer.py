@@ -2,8 +2,7 @@
 LLM Stock Analyzer — Uses GitHub Models API (free with GitHub account)
 to analyze stock indicators and recommend Buy / Hold / Avoid.
 
-Primary: GitHub Models (gpt-4o-mini via models.inference.ai.azure.com)
-Fallback: Google Gemini (gemini-2.5-flash)
+Provider: GitHub Models (gpt-4o-mini via models.inference.ai.azure.com)
 
 No rigid rules — the LLM uses its own market expertise, all 25 indicator values,
 and 15-minute candle data (last 3 days) to identify chart patterns and make decisions.
@@ -20,19 +19,13 @@ import requests
 import numpy as np
 from datetime import datetime, timedelta
 
-# ─── API Keys ─────────────────────────────────────────────────────
+# ─── API Key ──────────────────────────────────────────────────────
 # GitHub PAT with models:read scope — get one at https://github.com/settings/tokens
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
-# Gemini fallback — get a NEW key at https://aistudio.google.com/apikey
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 # GitHub Models endpoint (OpenAI-compatible)
 GITHUB_MODELS_URL = "https://models.inference.ai.azure.com/chat/completions"
 GITHUB_MODEL = "gpt-4o-mini"  # free tier, fast, good at JSON
-
-# Gemini fallback
-GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
-GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
 
 BATCH_SIZE = 5  # smaller batches — prompts are large with 15-min candle data
 MAX_RETRIES = 2
@@ -61,14 +54,12 @@ def _repair_json(text):
     text = re.sub(r",\s*([}\]])", r"\1", text)
 
     # If the array is truncated (missing closing ]), try to close it
-    # Find the last complete object (ends with })
     if text.startswith("[") and not text.rstrip().endswith("]"):
         last_brace = text.rfind("}")
         if last_brace > 0:
             text = text[:last_brace + 1] + "]"
 
     # If a string value is unterminated, close it
-    # Pattern: "key": "value without closing quote
     text = re.sub(r'"([^"]*?)$', r'"\1"', text)
 
     # Try again
@@ -104,7 +95,6 @@ def _summarize_intraday(candles_15m):
         return "No intraday data"
 
     lines = []
-    # Group by date
     by_date = {}
     for c in candles_15m:
         dt = datetime.fromtimestamp(c[0])
@@ -113,7 +103,7 @@ def _summarize_intraday(candles_15m):
             by_date[day] = []
         by_date[day].append(c)
 
-    for day, candles in list(by_date.items())[-3:]:  # last 3 days
+    for day, candles in list(by_date.items())[-3:]:
         opens = [c[1] for c in candles]
         highs = [c[2] for c in candles]
         lows = [c[3] for c in candles]
@@ -127,10 +117,8 @@ def _summarize_intraday(candles_15m):
         day_chg = ((day_close - day_open) / day_open * 100) if day_open > 0 else 0
         total_vol = sum(vols)
 
-        # Detect intraday patterns
         patterns = []
 
-        # Higher highs / lower lows trend
         hh_count = sum(1 for i in range(1, len(highs)) if highs[i] > highs[i-1])
         ll_count = sum(1 for i in range(1, len(lows)) if lows[i] < lows[i-1])
         if hh_count > len(highs) * 0.6:
@@ -138,18 +126,12 @@ def _summarize_intraday(candles_15m):
         if ll_count > len(lows) * 0.6:
             patterns.append("lower-lows")
 
-        # Volume spike in last hour
         if len(vols) >= 4:
             avg_vol = np.mean(vols[:-4]) if len(vols) > 4 else np.mean(vols)
             last_hr_vol = np.mean(vols[-4:])
             if avg_vol > 0 and last_hr_vol > avg_vol * 1.5:
                 patterns.append("late-vol-spike")
 
-        # Gap up/down from previous day
-        if len(lines) > 0 and candles_15m:
-            pass  # handled at day level below
-
-        # Doji / hammer detection (last 3 candles)
         for c in candles[-3:]:
             body = abs(c[4] - c[1])
             wick_upper = c[2] - max(c[1], c[4])
@@ -162,7 +144,6 @@ def _summarize_intraday(candles_15m):
                 patterns.append("hammer")
                 break
 
-        # Close near high or low
         if day_high > day_low:
             pos = (day_close - day_low) / (day_high - day_low)
             if pos > 0.85:
@@ -176,7 +157,7 @@ def _summarize_intraday(candles_15m):
     return "\n".join(lines)
 
 
-# ─── Prompt builder (for a batch) ─────────────────────────────────
+# ─── Prompt builder ───────────────────────────────────────────────
 
 def _build_batch_prompt(stocks_batch):
     """Build prompt — no rigid rules, let LLM use its own expertise."""
@@ -198,14 +179,11 @@ def _build_batch_prompt(stocks_batch):
         "- Your knowledge of the company, sector, and current market conditions\n\n"
         "Make your OWN independent decision. Do NOT follow any fixed scoring rules.\n"
         "Think like a professional trader planning trades for the NEXT TRADING DAY.\n\n"
-        "═══════════════════════════════════════════\n"
-        "STOCKS DATA:\n"
-        "═══════════════════════════════════════════\n\n"
     )
 
     for s in stocks_batch:
         header += (
-            f"━━━ {s['name']} ━━━ ₹{s['price']} ({s['change_pct']:+.1f}%) Score={s['score']}/30\n"
+            f"--- {s['name']} --- Rs.{s['price']} ({s['change_pct']:+.1f}%) Score={s['score']}/30\n"
             f"  RSI={s['rsi']} MACD={s['macd']}(sig={s['macd_signal']},hist={s['macd_hist']}) "
             f"StochK={s['stoch_k']} StochD={s.get('stoch_d','?')}\n"
             f"  SMA20={s['sma20']} SMA50={s['sma50']} SMA200={s['sma200']} "
@@ -220,14 +198,12 @@ def _build_batch_prompt(stocks_batch):
             f"  Ichimoku: Tenkan={s.get('ichimoku_tenkan','?')} Kijun={s.get('ichimoku_kijun','?')}\n"
             f"  Pivot={s.get('pivot','?')} S1={s.get('pivot_s1','?')} R1={s.get('pivot_r1','?')}\n"
         )
-        # Add 15-min candle data if available
         intraday = s.get('intraday_summary', '')
         if intraday:
             header += f"  15-min candles (3 days):\n{intraday}\n"
         header += "\n"
 
     header += (
-        "═══════════════════════════════════════════\n"
         "Return ONLY a JSON array. No markdown. No explanation.\n"
         "Each object: {\"name\":\"SYMBOL\",\"action\":\"BUY|HOLD|AVOID\","
         "\"confidence\":\"HIGH|MEDIUM|LOW\","
@@ -237,11 +213,12 @@ def _build_batch_prompt(stocks_batch):
     return header
 
 
-# ─── API call: GitHub Models (primary) ────────────────────────────
+# ─── API call: GitHub Models ─────────────────────────────────────
 
 def _call_github_models(prompt):
     """Call GitHub Models API (OpenAI-compatible) and return parsed JSON list."""
     if not GITHUB_TOKEN:
+        print("  !! GITHUB_TOKEN not set - cannot call LLM")
         return None
 
     try:
@@ -265,24 +242,23 @@ def _call_github_models(prompt):
         )
 
         if resp.status_code == 429:
-            print(f"  ⚠ GitHub Models rate limited (429), will try Gemini fallback")
+            print(f"  !! GitHub Models rate limited (429)")
             return None
         if resp.status_code != 200:
-            print(f"  ⚠ GitHub Models API {resp.status_code}: {resp.text[:200]}")
+            print(f"  !! GitHub Models API {resp.status_code}: {resp.text[:200]}")
             return None
 
         data = resp.json()
         text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
         if not text:
+            print("  !! GitHub Models: empty response")
             return None
 
         parsed = _repair_json(text)
-        # json_object mode may wrap in {"recommendations": [...]} — extract array
         if isinstance(parsed, dict):
-            for key in ("recommendations", "stocks", "data", "results"):
+            for key in ("recommendations", "stocks", "data", "results", "analysis"):
                 if key in parsed and isinstance(parsed[key], list):
                     return parsed[key]
-            # If it's a single-item dict with a list value, use it
             for v in parsed.values():
                 if isinstance(v, list):
                     return v
@@ -290,92 +266,29 @@ def _call_github_models(prompt):
         if isinstance(parsed, list):
             return parsed
 
-        print(f"  ⚠ GitHub Models: unexpected response shape")
+        print(f"  !! GitHub Models: unexpected response shape: {str(parsed)[:100]}")
         return None
 
+    except requests.exceptions.Timeout:
+        print(f"  !! GitHub Models: request timed out (90s)")
+        return None
     except Exception as e:
-        print(f"  ⚠ GitHub Models error: {e}")
+        print(f"  !! GitHub Models error: {e}")
         return None
-
-
-# ─── API call: Gemini (fallback) ──────────────────────────────────
-
-def _call_gemini(prompt):
-    """Call Gemini API with automatic model fallback. Returns parsed JSON list."""
-    if not GEMINI_API_KEY:
-        return None
-
-    for model in GEMINI_MODELS:
-        try:
-            url = f"{GEMINI_BASE}/{model}:generateContent?key={GEMINI_API_KEY}"
-            resp = requests.post(
-                url,
-                json={
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {
-                        "temperature": 0.2,
-                        "maxOutputTokens": 8192,
-                        "responseMimeType": "application/json"
-                    }
-                },
-                timeout=90
-            )
-
-            if resp.status_code == 429:
-                print(f"  ⚠ Gemini {model} rate limited, trying next...")
-                continue
-            if resp.status_code != 200:
-                print(f"  ⚠ Gemini {model} error {resp.status_code}: {resp.text[:150]}")
-                continue
-
-            data = resp.json()
-            candidate = (data.get("candidates") or [{}])[0]
-            text = candidate.get("content", {}).get("parts", [{}])[0].get("text", "")
-            if not text:
-                continue
-
-            parsed = _repair_json(text)
-            if parsed and isinstance(parsed, list) and len(parsed) > 0:
-                print(f"  ✓ Using Gemini model: {model}")
-                return parsed
-
-        except Exception as e:
-            print(f"  ⚠ Gemini {model} exception: {e}")
-            continue
-
-    return None
-
-
-# ─── Unified API call (tries GitHub first, then Gemini) ───────────
-
-def _call_llm(prompt):
-    """Try GitHub Models first, fall back to Gemini."""
-    # Try GitHub Models
-    result = _call_github_models(prompt)
-    if result and isinstance(result, list) and len(result) > 0:
-        return result
-
-    # Fall back to Gemini
-    result = _call_gemini(prompt)
-    if result and isinstance(result, list) and len(result) > 0:
-        return result
-
-    return None
 
 
 # ─── Main entry point ────────────────────────────────────────────
 
 def analyze_with_llm(stocks_data, fyers_client=None):
     """
-    Send stock data to LLM in batches, merge results.
+    Send stock data to GitHub Models in batches, merge results.
     If fyers_client is provided, also fetches 15-min candle data for last 3 days.
     """
 
-    if not GITHUB_TOKEN and not GEMINI_API_KEY:
-        return {"error": "No API key set. Add GITHUB_TOKEN or GEMINI_API_KEY in environment."}
+    if not GITHUB_TOKEN:
+        return {"error": "GITHUB_TOKEN not set. Add it in Render env vars or .env file."}
 
-    using = "GitHub Models (gpt-4o-mini)" if GITHUB_TOKEN else "Gemini (fallback)"
-    print(f"🤖 LLM provider: {using}")
+    print(f">> LLM provider: GitHub Models (gpt-4o-mini)")
 
     valid = [s for s in stocks_data if s is not None]
     if not valid:
@@ -383,13 +296,12 @@ def analyze_with_llm(stocks_data, fyers_client=None):
 
     # Fetch 15-min candle data for each stock (last 3 trading days)
     if fyers_client and fyers_client.access_token:
-        print(f"📊 Fetching 15-min candle data for {len(valid)} stocks...")
+        print(f">> Fetching 15-min candle data for {len(valid)} stocks...")
         for i, stock in enumerate(valid):
             symbol = stock.get('symbol', f"NSE:{stock['name']}-EQ")
             try:
                 df = fyers_client.get_history(symbol, resolution="15", days=5)
                 if df is not None and len(df) > 0:
-                    # Convert to list of [epoch, O, H, L, C, V]
                     candles = []
                     for idx, row in df.iterrows():
                         candles.append([
@@ -404,7 +316,6 @@ def analyze_with_llm(stocks_data, fyers_client=None):
             except Exception as e:
                 stock['intraday_summary'] = "No intraday data"
 
-            # Rate limit: 8/sec
             if (i + 1) % 8 == 0:
                 time.sleep(1.1)
             else:
@@ -413,9 +324,9 @@ def analyze_with_llm(stocks_data, fyers_client=None):
             if (i + 1) % 20 == 0:
                 print(f"  [{i+1}/{len(valid)}] 15-min data fetched...")
 
-        print(f"✅ 15-min data ready for {len(valid)} stocks")
+        print(f">> 15-min data ready for {len(valid)} stocks")
     else:
-        print("⚠️  No Fyers client — skipping 15-min candle data")
+        print(">> No Fyers client - skipping 15-min candle data")
         for stock in valid:
             stock['intraday_summary'] = ""
 
@@ -424,23 +335,23 @@ def analyze_with_llm(stocks_data, fyers_client=None):
     rec_map = {}
     errors = []
 
-    print(f"🤖 LLM: analyzing {len(valid)} stocks in {len(batches)} batches...")
+    print(f">> Analyzing {len(valid)} stocks in {len(batches)} batches...")
 
     for idx, batch in enumerate(batches):
         names = [s['name'] for s in batch]
         prompt = _build_batch_prompt(batch)
-        prompt_len = len(prompt)
-        print(f"  📦 Batch {idx+1}/{len(batches)}: {', '.join(names)} ({prompt_len} chars)")
+        print(f"  Batch {idx+1}/{len(batches)}: {', '.join(names)} ({len(prompt)} chars)")
 
         result = None
 
         for attempt in range(MAX_RETRIES + 1):
-            result = _call_llm(prompt)
+            result = _call_github_models(prompt)
             if result and isinstance(result, list) and len(result) > 0:
                 break
             if attempt < MAX_RETRIES:
-                print(f"  🔄 Retry {attempt+1} for batch {idx+1}...")
-                time.sleep(1)
+                wait = 2 * (attempt + 1)
+                print(f"  Retry {attempt+1} for batch {idx+1} (waiting {wait}s)...")
+                time.sleep(wait)
 
         if result and isinstance(result, list):
             for rec in result:
@@ -454,16 +365,15 @@ def analyze_with_llm(stocks_data, fyers_client=None):
                         "stoploss": rec.get("stoploss", 0),
                         "risk_reward": rec.get("risk_reward", "N/A")
                     }
-            print(f"  ✅ Got {len(result)} recommendations")
+            print(f"  OK: {len(result)} recommendations")
         else:
             errors.append(f"Batch {idx+1} ({', '.join(names)}) failed")
-            print(f"  ❌ Batch {idx+1} failed after retries")
+            print(f"  FAIL: Batch {idx+1}")
 
-        # Small delay between batches to respect rate limits
         if idx < len(batches) - 1:
-            time.sleep(0.5)
+            time.sleep(1)
 
-    print(f"🤖 LLM done: {len(rec_map)} recommendations, {len(errors)} batch errors")
+    print(f">> Done: {len(rec_map)} recs, {len(errors)} errors")
 
     if not rec_map:
         return {"error": "All batches failed. " + "; ".join(errors)}
