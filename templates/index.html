@@ -1108,29 +1108,30 @@
 
     <!-- Main Content -->
     <div id="mainContent">
-        {% if not authenticated %}
-        <div class="auth-section" id="connectingState" style="max-width: 520px; margin: 60px auto; padding: 40px; background: var(--card); border-radius: 16px; border: 1px solid var(--border); text-align: center;">
-            <div style="font-size: 40px; margin-bottom: 12px;">🔑</div>
-            <h3 style="margin-bottom: 6px;">Connect to Fyers</h3>
-            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">Click login, sign in to Fyers, then paste the redirect URL below</p>
-            <button class="btn btn-primary" id="loginBtn" onclick="openFyersLogin()" style="padding: 12px 32px; font-size: 15px; margin-bottom: 16px; cursor: pointer;">
+        <div class="empty-state" id="emptyState">
+            <div class="icon">📊</div>
+            <h3 id="emptyStateTitle">Loading stored analysis...</h3>
+            <p id="emptyStateMsg">Click a date chip above to view stored data, or use Live mode with Fyers for real-time analysis</p>
+        </div>
+    </div>
+
+    <!-- Fyers Connect Panel (only for Live mode) -->
+    <div id="fyersConnectPanel" style="display:none;">
+        <div style="max-width: 520px; margin: 30px auto; padding: 30px; background: var(--card); border-radius: 16px; border: 1px solid var(--border); text-align: center;">
+            <div style="font-size: 32px; margin-bottom: 8px;">🔑</div>
+            <h3 style="margin-bottom: 6px; font-size: 16px;">Connect to Fyers for Live Analysis</h3>
+            <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">Required for real-time data. Stored data works without Fyers.</p>
+            <button class="btn btn-primary" id="fyersLoginBtn" onclick="openFyersLogin()" style="padding: 10px 28px; font-size: 14px; margin-bottom: 12px; cursor: pointer;">
                 🔐 Open Fyers Login
             </button>
             <div style="display: flex; gap: 8px;">
                 <input type="text" id="authUrlInput" placeholder="Paste the redirect URL here..." 
-                    style="flex:1; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 12px 16px; border-radius: 10px; font-size: 14px; outline: none;"
+                    style="flex:1; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 10px; font-size: 13px; outline: none;"
                     oninput="autoConnect(this.value)">
                 <button class="btn btn-primary" id="connectBtn" onclick="connectNow()">Connect</button>
             </div>
-            <div id="connectMsg" style="margin-top: 12px; font-size: 13px;"></div>
+            <div id="connectMsg" style="margin-top: 10px; font-size: 13px;"></div>
         </div>
-        {% else %}
-        <div class="empty-state" id="emptyState">
-            <div class="icon">✅</div>
-            <h3>Connected — Ready to Analyze</h3>
-            <p>Select a stock universe, date, and click "Analyze" to scan stocks</p>
-        </div>
-        {% endif %}
     </div>
 
     <!-- Stock Grid -->
@@ -1148,7 +1149,7 @@
         document.getElementById('analysisDate').value = today;
 
         // ─── Load stored dates on startup ────────────────────────
-        async function loadStoredDates() {
+        async function loadStoredDates(autoLoad = false) {
             try {
                 const res = await fetch('/api/stored-dates');
                 const data = await res.json();
@@ -1156,6 +1157,12 @@
                 renderDateChips();
                 if (storedDates.length > 0) {
                     document.getElementById('storedDatesBar').classList.add('show');
+                    // Auto-load the most recent stored analysis on first load
+                    if (autoLoad) {
+                        const latest = storedDates[0];
+                        const firstChip = document.querySelector('.date-chip');
+                        loadStoredData(latest.run_date, latest.category, firstChip);
+                    }
                 }
             } catch (e) {
                 console.log('No stored dates available');
@@ -1194,13 +1201,23 @@
             // Show/hide relevant controls
             const analyzeBtn = document.getElementById('analyzeBtn');
             const runStoreBtn = document.getElementById('runStoreBtn');
+            const fyersPanel = document.getElementById('fyersConnectPanel');
+            const authOk = document.getElementById('statusDot').classList.contains('ok');
 
             if (mode === 'live') {
                 analyzeBtn.style.display = 'flex';
                 runStoreBtn.style.display = 'none';
+                // Show Fyers connect if not authenticated and no data showing
+                if (!authOk && document.getElementById('stockGrid').children.length === 0) {
+                    fyersPanel.style.display = 'block';
+                    document.getElementById('mainContent').style.display = 'none';
+                } else {
+                    fyersPanel.style.display = 'none';
+                }
             } else {
                 analyzeBtn.style.display = 'flex';
                 runStoreBtn.style.display = 'flex';
+                fyersPanel.style.display = 'none';
             }
         }
 
@@ -1238,6 +1255,7 @@
                 document.getElementById('statsBar').style.display = 'grid';
                 document.getElementById('filterBar').style.display = 'flex';
                 document.getElementById('mainContent').style.display = 'none';
+                document.getElementById('fyersConnectPanel').style.display = 'none';
 
                 // If AI recommendations are included, apply them
                 if (data.ai_recommendations) {
@@ -1398,7 +1416,8 @@
 
         // ─── Open Fyers Login in new tab ─────────────────
         async function openFyersLogin() {
-            const btn = document.getElementById('loginBtn');
+            const btn = document.getElementById('fyersLoginBtn');
+            if (!btn) return;
             btn.innerHTML = '⏳ Loading...';
             btn.disabled = true;
             try {
@@ -1450,13 +1469,9 @@
                     document.getElementById('statusDot').className = 'status-dot ok';
                     document.getElementById('authLabel').textContent = 'Connected';
 
-                    // Replace auth section with ready state
+                    // Hide Fyers connect panel after success
                     setTimeout(() => {
-                        document.getElementById('connectingState').innerHTML = `
-                            <div style="font-size: 40px; margin-bottom: 12px;">✅</div>
-                            <h3>Connected — Ready to Analyze</h3>
-                            <p style="color: var(--text-muted); font-size: 14px;">Select a stock universe and date above, then click "Analyze"</p>
-                        `;
+                        document.getElementById('fyersConnectPanel').style.display = 'none';
                     }, 500);
                 } else {
                     msg.innerHTML = '<span style="color: var(--red)">❌ Failed. Try again or re-login.</span>';
@@ -1506,30 +1521,15 @@
                 clearTimeout(timeoutId);
 
                 if (res.status === 401) {
-                    // Token expired — show auth section
+                    // Token expired — show Fyers connect panel
                     overlay.classList.remove('show');
                     btn.disabled = false;
                     btn.innerHTML = '🔍 Analyze';
                     document.getElementById('authStatus').className = 'auth-status no';
                     document.getElementById('statusDot').className = 'status-dot no';
                     document.getElementById('authLabel').textContent = 'Expired';
-                    document.getElementById('mainContent').style.display = '';
-                    document.getElementById('mainContent').innerHTML = `
-                        <div class="auth-section" id="connectingState" style="max-width: 520px; margin: 60px auto; padding: 40px; background: var(--card); border-radius: 16px; border: 1px solid var(--border); text-align: center;">
-                            <div style="font-size: 40px; margin-bottom: 12px;">🔑</div>
-                            <h3 style="margin-bottom: 6px;">Fyers Token Expired</h3>
-                            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">Daily re-login required. Click below, sign in, then paste the redirect URL.</p>
-                            <button class="btn btn-primary" id="loginBtn" onclick="openFyersLogin()" style="padding: 12px 32px; font-size: 15px; margin-bottom: 16px; cursor: pointer;">
-                                🔐 Open Fyers Login
-                            </button>
-                            <div style="display: flex; gap: 8px;">
-                                <input type="text" id="authUrlInput" placeholder="Paste the redirect URL here..."
-                                    style="flex:1; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 12px 16px; border-radius: 10px; font-size: 14px; outline: none;"
-                                    oninput="autoConnect(this.value)">
-                                <button class="btn btn-primary" id="connectBtn" onclick="connectNow()">Connect</button>
-                            </div>
-                            <div id="connectMsg" style="margin-top: 12px; font-size: 13px;"></div>
-                        </div>`;
+                    document.getElementById('fyersConnectPanel').style.display = 'block';
+                    alert('Fyers token expired. Please re-connect to Fyers for live analysis. Stored data still works!');
                     return;
                 }
 
@@ -2024,8 +2024,8 @@
             if (sessionStorage.getItem('dash_authed') === '1') {
                 document.getElementById('loginOverlay').classList.add('hidden');
                 document.getElementById('dashboardContainer').style.display = '';
-                // Load stored dates on startup
-                loadStoredDates();
+                // Load stored dates and auto-load latest analysis
+                loadStoredDates(true);
             }
         })();
 
@@ -2041,8 +2041,8 @@
                 errEl.textContent = '';
                 document.getElementById('loginOverlay').classList.add('hidden');
                 document.getElementById('dashboardContainer').style.display = '';
-                // Load stored dates after login
-                loadStoredDates();
+                // Load stored dates and auto-load latest analysis
+                loadStoredDates(true);
             } else {
                 errEl.textContent = '❌ Invalid username or password';
                 box.classList.remove('login-shake');

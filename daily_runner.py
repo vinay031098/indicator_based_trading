@@ -71,7 +71,7 @@ def get_fyers_client():
 
 
 def run_daily_analysis(analysis_date: str, category: str = "all",
-                        min_score: int = 2, skip_ai: bool = False):
+                        min_score: int = 2, skip_ai: bool = False, force: bool = False):
     """
     Run full analysis pipeline:
     1. Connect to Fyers
@@ -94,10 +94,13 @@ def run_daily_analysis(analysis_date: str, category: str = "all",
     if existing:
         print(f"⚠️  Analysis already exists for {analysis_date} ({category}).")
         print(f"   Run ID: {existing['id']}, Stocks: {existing['total_stocks']}")
-        response = input("   Overwrite? (y/N): ").strip().lower()
-        if response != 'y':
-            print("   Skipped.")
-            return
+        if force:
+            print("   --force specified, overwriting...")
+        else:
+            response = input("   Overwrite? (y/N): ").strip().lower()
+            if response != 'y':
+                print("   Skipped.")
+                return
 
     # Step 1: Connect to Fyers
     print("📡 Step 1: Connecting to Fyers...")
@@ -271,7 +274,8 @@ def main():
         analysis_date=args.date,
         category=args.category,
         min_score=args.min_score,
-        skip_ai=args.skip_ai
+        skip_ai=args.skip_ai,
+        force=args.force
     )
 
 
