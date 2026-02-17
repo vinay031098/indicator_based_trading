@@ -858,6 +858,102 @@
         }
         .chat-send:hover { background: var(--accent-hover); }
         .chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* ─── Stored Date Picker ──────────────────────────────── */
+        .stored-dates-bar {
+            padding: 12px 32px;
+            background: linear-gradient(135deg, rgba(108,99,255,0.08), rgba(59,130,246,0.05));
+            border-bottom: 1px solid var(--border);
+            display: none;
+        }
+        .stored-dates-bar.show { display: block; }
+        .stored-dates-bar .bar-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--text);
+        }
+        .stored-dates-bar .bar-title span {
+            color: var(--text-muted);
+            font-weight: 400;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+        .date-chips {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .date-chip {
+            padding: 8px 16px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--card);
+            color: var(--text);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            min-width: 110px;
+        }
+        .date-chip:hover { border-color: var(--accent); transform: translateY(-1px); }
+        .date-chip.active {
+            border-color: var(--accent);
+            background: rgba(108,99,255,0.15);
+            color: var(--accent);
+            box-shadow: 0 2px 10px rgba(108,99,255,0.2);
+        }
+        .date-chip .chip-date { font-weight: 700; font-size: 14px; }
+        .date-chip .chip-meta { font-size: 10px; color: var(--text-muted); }
+        .date-chip .chip-ai {
+            font-size: 10px;
+            display: flex;
+            gap: 4px;
+        }
+        .mode-toggle {
+            display: inline-flex;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-left: 16px;
+        }
+        .mode-btn {
+            padding: 6px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .mode-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+        .mode-btn:hover:not(.active) { background: rgba(108,99,255,0.1); }
+
+        /* ─── Run & Store Button ──────────────────────────────── */
+        .btn-run-store {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            border: none;
+            padding: 9px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-run-store:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-run-store:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
     </style>
 </head>
 <body>
@@ -932,6 +1028,23 @@
             <button class="btn btn-primary" id="analyzeBtn" onclick="runAnalysis()">
                 🔍 Analyze
             </button>
+            <button class="btn-run-store" id="runStoreBtn" onclick="runAndStore()" title="Analyze + AI + Save to database for future access">
+                💾 Run & Store
+            </button>
+        </div>
+    </div>
+
+    <!-- Stored Dates Bar -->
+    <div class="stored-dates-bar" id="storedDatesBar">
+        <div class="bar-title">
+            📅 Stored Analysis Dates <span>Click a date to load pre-analyzed data (no Fyers needed)</span>
+            <div class="mode-toggle" style="float:right;">
+                <button class="mode-btn active" id="modeStored" onclick="switchMode('stored')">📦 Stored</button>
+                <button class="mode-btn" id="modeLive" onclick="switchMode('live')">🔴 Live</button>
+            </div>
+        </div>
+        <div class="date-chips" id="dateChips">
+            <!-- Filled by JS -->
         </div>
     </div>
 
@@ -1027,10 +1140,261 @@
         // ─── State ──────────────────────────────────────────────
         let allResults = [];
         let currentFilter = 'qualified';
+        let currentMode = 'stored'; // 'stored' or 'live'
+        let storedDates = [];
 
         // Set today as default date
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('analysisDate').value = today;
+
+        // ─── Load stored dates on startup ────────────────────────
+        async function loadStoredDates() {
+            try {
+                const res = await fetch('/api/stored-dates');
+                const data = await res.json();
+                storedDates = data.dates || [];
+                renderDateChips();
+                if (storedDates.length > 0) {
+                    document.getElementById('storedDatesBar').classList.add('show');
+                }
+            } catch (e) {
+                console.log('No stored dates available');
+            }
+        }
+
+        function renderDateChips() {
+            const container = document.getElementById('dateChips');
+            if (storedDates.length === 0) {
+                container.innerHTML = '<span style="color:var(--text-muted); font-size:13px;">No stored analyses yet. Use "💾 Run & Store" to create one.</span>';
+                return;
+            }
+            container.innerHTML = storedDates.map(d => {
+                const dateObj = new Date(d.run_date + 'T00:00:00');
+                const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+                const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                const aiInfo = d.ai_completed
+                    ? `<span class="chip-ai"><span style="color:var(--green)">🟢${d.ai_buy_count}</span> <span style="color:var(--yellow)">🟡${d.ai_hold_count}</span> <span style="color:var(--red)">🔴${d.ai_avoid_count}</span></span>`
+                    : '<span class="chip-ai" style="color:var(--text-muted)">No AI</span>';
+                return `
+                    <div class="date-chip" onclick="loadStoredData('${d.run_date}', '${d.category}', this)" data-date="${d.run_date}">
+                        <span class="chip-date">${dayName}, ${dateStr}</span>
+                        <span class="chip-meta">${d.total_stocks} stocks · ${d.category}</span>
+                        ${aiInfo}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ─── Mode Toggle (Stored vs Live) ────────────────────────
+        function switchMode(mode) {
+            currentMode = mode;
+            document.getElementById('modeStored').classList.toggle('active', mode === 'stored');
+            document.getElementById('modeLive').classList.toggle('active', mode === 'live');
+
+            // Show/hide relevant controls
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            const runStoreBtn = document.getElementById('runStoreBtn');
+
+            if (mode === 'live') {
+                analyzeBtn.style.display = 'flex';
+                runStoreBtn.style.display = 'none';
+            } else {
+                analyzeBtn.style.display = 'flex';
+                runStoreBtn.style.display = 'flex';
+            }
+        }
+
+        // ─── Load stored data for a date ─────────────────────────
+        async function loadStoredData(date, category, chipEl) {
+            // Highlight active chip
+            document.querySelectorAll('.date-chip').forEach(c => c.classList.remove('active'));
+            if (chipEl) chipEl.classList.add('active');
+
+            const overlay = document.getElementById('loadingOverlay');
+            document.getElementById('loadingText').innerHTML = `Loading stored analysis for ${date}...`;
+            overlay.classList.add('show');
+
+            try {
+                const minScore = parseInt(document.getElementById('minScore').value);
+                const res = await fetch('/api/stored-data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ date, category, min_score: minScore })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    alert(err.error || 'Failed to load stored data');
+                    overlay.classList.remove('show');
+                    return;
+                }
+
+                const data = await res.json();
+                allResults = [...(data.qualified || []), ...(data.unqualified || [])];
+                updateStats(data);
+                renderStocks(data.qualified || []);
+
+                // Show stats and filter bars
+                document.getElementById('statsBar').style.display = 'grid';
+                document.getElementById('filterBar').style.display = 'flex';
+                document.getElementById('mainContent').style.display = 'none';
+
+                // If AI recommendations are included, apply them
+                if (data.ai_recommendations) {
+                    aiRecommendations = data.ai_recommendations;
+                    const buyCount = Object.values(aiRecommendations).filter(r => r.action === 'BUY').length;
+                    const neutralCount = Object.values(aiRecommendations).filter(r => r.action === 'HOLD').length;
+                    const sellCount = Object.values(aiRecommendations).filter(r => r.action === 'AVOID').length;
+
+                    // Show AI stat cards
+                    document.getElementById('statAiBuy').textContent = buyCount;
+                    document.getElementById('statAiSell').textContent = sellCount;
+                    document.getElementById('statAiNeutral').textContent = neutralCount;
+                    document.getElementById('statAiBuyCard').style.display = 'block';
+                    document.getElementById('statAiSellCard').style.display = 'block';
+                    document.getElementById('statAiNeutralCard').style.display = 'block';
+
+                    // Show AI filter tabs
+                    document.getElementById('aiFilterDivider').style.display = 'block';
+                    document.getElementById('aiFilterBuy').style.display = 'inline-block';
+                    document.getElementById('aiFilterSell').style.display = 'inline-block';
+                    document.getElementById('aiFilterNeutral').style.display = 'inline-block';
+
+                    // Show AI bar with done status
+                    document.getElementById('aiBar').style.display = 'flex';
+                    document.getElementById('aiBtn').innerHTML = '🤖 AI Done ✓ (Stored)';
+                    document.getElementById('aiBtn').disabled = false;
+                    document.getElementById('aiStatus').innerHTML = `✅ Stored AI — <span style="color:var(--green)">${buyCount} BUY</span> · <span style="color:var(--yellow)">${neutralCount} NEUTRAL</span> · <span style="color:var(--red)">${sellCount} SELL</span>`;
+
+                    // Re-render to show AI badges
+                    filterStocks(currentFilter, document.querySelector(`.filter-tab[data-filter="${currentFilter}"]`));
+                } else {
+                    // Show AI bar so user can run AI on stored data
+                    document.getElementById('aiBar').style.display = 'flex';
+                    document.getElementById('aiBtn').innerHTML = '🤖 Get AI Buy / Sell / Neutral';
+                    document.getElementById('aiBtn').disabled = false;
+                    document.getElementById('aiStatus').innerHTML = '';
+                    // Hide AI stat cards
+                    document.getElementById('statAiBuyCard').style.display = 'none';
+                    document.getElementById('statAiSellCard').style.display = 'none';
+                    document.getElementById('statAiNeutralCard').style.display = 'none';
+                    document.getElementById('aiFilterDivider').style.display = 'none';
+                    document.getElementById('aiFilterBuy').style.display = 'none';
+                    document.getElementById('aiFilterSell').style.display = 'none';
+                    document.getElementById('aiFilterNeutral').style.display = 'none';
+                }
+
+            } catch (err) {
+                alert('Error loading stored data: ' + err.message);
+            } finally {
+                overlay.classList.remove('show');
+            }
+        }
+
+        // ─── Run & Store (analyze + AI + save to DB) ─────────────
+        async function runAndStore() {
+            const date = document.getElementById('analysisDate').value;
+            const minScore = document.getElementById('minScore').value;
+            const category = document.getElementById('stockCategory').value;
+            const btn = document.getElementById('runStoreBtn');
+
+            const countMap = { nifty50: '~48', nifty100: '~98', nifty200: '~200', nifty500: '~500', all: '~2100' };
+            const labelMap = { nifty50: 'NIFTY 50', nifty100: 'NIFTY 100', nifty200: 'NIFTY 200', nifty500: 'NIFTY 500', all: 'All NSE' };
+            const timeMap = { nifty50: '~2 min', nifty100: '~4 min', nifty200: '~8 min', nifty500: '~15 min', all: '~30 min' };
+
+            document.getElementById('loadingText').innerHTML = `
+                💾 Run & Store: Analyzing ${countMap[category] || ''} ${labelMap[category] || ''} stocks + AI...<br>
+                <span style="font-size:13px;color:var(--text-muted);">Estimated time: ${timeMap[category] || '~10 min'} (includes AI analysis)</span>
+            `;
+
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.classList.add('show');
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Running...';
+
+            try {
+                const timeoutMap = { nifty50: 300, nifty100: 600, nifty200: 900, nifty500: 1200, all: 2400 };
+                const timeoutSec = timeoutMap[category] || 900;
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeoutSec * 1000);
+
+                const res = await fetch('/api/run-daily', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ date, min_score: minScore, category, force: true }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (res.status === 401) {
+                    alert('Fyers not connected. Please connect first.');
+                    overlay.classList.remove('show');
+                    btn.disabled = false;
+                    btn.innerHTML = '💾 Run & Store';
+                    return;
+                }
+
+                const data = await res.json();
+
+                if (data.error) {
+                    alert(data.error);
+                    overlay.classList.remove('show');
+                    btn.disabled = false;
+                    btn.innerHTML = '💾 Run & Store';
+                    return;
+                }
+
+                // Data is already stored, load it like stored data
+                allResults = [...(data.qualified || []), ...(data.unqualified || [])];
+                updateStats(data);
+                renderStocks(data.qualified || []);
+
+                document.getElementById('statsBar').style.display = 'grid';
+                document.getElementById('filterBar').style.display = 'flex';
+                document.getElementById('mainContent').style.display = 'none';
+
+                // Handle AI results
+                if (data.ai_recommendations) {
+                    aiRecommendations = data.ai_recommendations;
+                    const buyCount = Object.values(aiRecommendations).filter(r => r.action === 'BUY').length;
+                    const neutralCount = Object.values(aiRecommendations).filter(r => r.action === 'HOLD').length;
+                    const sellCount = Object.values(aiRecommendations).filter(r => r.action === 'AVOID').length;
+
+                    document.getElementById('statAiBuy').textContent = buyCount;
+                    document.getElementById('statAiSell').textContent = sellCount;
+                    document.getElementById('statAiNeutral').textContent = neutralCount;
+                    document.getElementById('statAiBuyCard').style.display = 'block';
+                    document.getElementById('statAiSellCard').style.display = 'block';
+                    document.getElementById('statAiNeutralCard').style.display = 'block';
+                    document.getElementById('aiFilterDivider').style.display = 'block';
+                    document.getElementById('aiFilterBuy').style.display = 'inline-block';
+                    document.getElementById('aiFilterSell').style.display = 'inline-block';
+                    document.getElementById('aiFilterNeutral').style.display = 'inline-block';
+                    document.getElementById('aiBar').style.display = 'flex';
+                    document.getElementById('aiBtn').innerHTML = '🤖 AI Done ✓';
+                    document.getElementById('aiStatus').innerHTML = `✅ AI + Stored — <span style="color:var(--green)">${buyCount} BUY</span> · <span style="color:var(--yellow)">${neutralCount} NEUTRAL</span> · <span style="color:var(--red)">${sellCount} SELL</span>`;
+                    filterStocks(currentFilter, document.querySelector(`.filter-tab[data-filter="${currentFilter}"]`));
+                } else {
+                    document.getElementById('aiBar').style.display = 'flex';
+                }
+
+                // Refresh stored dates list
+                await loadStoredDates();
+
+                alert(`✅ Analysis stored for ${date}! You can now load it anytime from the date bar.`);
+
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    alert('Request timed out. The server is still processing. Check back later.');
+                } else {
+                    alert('Error: ' + err.message);
+                }
+            } finally {
+                overlay.classList.remove('show');
+                btn.disabled = false;
+                btn.innerHTML = '💾 Run & Store';
+            }
+        }
 
         // ─── Open Fyers Login in new tab ─────────────────
         async function openFyersLogin() {
@@ -1660,6 +2024,8 @@
             if (sessionStorage.getItem('dash_authed') === '1') {
                 document.getElementById('loginOverlay').classList.add('hidden');
                 document.getElementById('dashboardContainer').style.display = '';
+                // Load stored dates on startup
+                loadStoredDates();
             }
         })();
 
@@ -1675,6 +2041,8 @@
                 errEl.textContent = '';
                 document.getElementById('loginOverlay').classList.add('hidden');
                 document.getElementById('dashboardContainer').style.display = '';
+                // Load stored dates after login
+                loadStoredDates();
             } else {
                 errEl.textContent = '❌ Invalid username or password';
                 box.classList.remove('login-shake');

@@ -16,6 +16,10 @@ from datetime import datetime, timedelta
 from flyers_integration import FyersClient, NIFTY_50_FYERS, get_symbols_for_category, fetch_all_nse_equity_symbols
 from fyers_apiv3 import fyersModel
 from llm_analyzer import analyze_with_llm
+from data_store import (
+    get_available_dates, get_run_by_date, get_stored_analysis,
+    create_run, save_stock_analysis, save_ai_recommendations, update_run_status
+)
 import requests
 
 # ─── Config (env-based for local vs production) ─────────────────────────
@@ -889,6 +893,146 @@ def api_chat():
     except Exception as e:
         print(f"!! Chat error: {e}")
         return jsonify({"error": f"Chat failed: {str(e)}"}), 500
+
+
+@app.route("/api/stored-dates")
+def api_stored_dates():
+    """Get list of all available pre-analyzed dates."""
+    try:
+        dates = get_available_dates()
+        return jsonify({"dates": dates})
+    except Exception as e:
+        print(f"!! Error fetching stored dates: {e}")
+        return jsonify({"dates": [], "error": str(e)})
+
+
+@app.route("/api/stored-data", methods=["POST"])
+def api_stored_data():
+    """Get stored analysis data for a specific date."""
+    try:
+        data = request.get_json()
+        run_date = data.get("date", "")
+        category = data.get("category", "all")
+        min_score = int(data.get("min_score", 0))
+
+        if not run_date:
+            return jsonify({"error": "No date provided"}), 400
+
+        run = get_run_by_date(run_date, category)
+        if not run:
+            return jsonify({"error": f"No stored analysis found for {run_date} ({category})"}), 404
+
+        result = get_stored_analysis(run['id'], min_score)
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"!! Error fetching stored data: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/run-daily", methods=["POST"])
+def api_run_daily():
+    """Trigger daily analysis run from the UI (stores results in DB)."""
+    global fyers_client
+    if fyers_client is None or fyers_client.access_token is None:
+        return jsonify({"error": "Not authenticated. Please login first."}), 401
+
+    data = request.get_json()
+    analysis_date = data.get("date", datetime.now().strftime("%Y-%m-%d"))
+    category = data.get("category", "all")
+    min_score = int(data.get("min_score", 2))
+    skip_ai = data.get("skip_ai", False)
+
+    # Check if already exists
+    existing = get_run_by_date(analysis_date, category)
+    if existing and not data.get("force", False):
+        return jsonify({
+            "exists": True,
+            "run": existing,
+            "message": f"Analysis already exists for {analysis_date}. Use 'force' to overwrite."
+        })
+
+    try:
+        # Create run record
+        run_id = create_run(analysis_date, category, min_score)
+
+        # Get symbols
+        symbols = get_symbols_for_category(category)
+        category_label = {
+            'nifty50': 'NIFTY 50', 'nifty100': 'NIFTY 100',
+            'nifty200': 'NIFTY 200', 'nifty500': 'NIFTY 500',
+            'all': f'All NSE ({len(symbols)})'
+        }.get(category, 'NIFTY 50')
+
+        print(f"\n🔍 [Run {run_id}] Analyzing {category_label} for {analysis_date}...")
+
+        # Fetch data
+        target_date = datetime.strptime(analysis_date, "%Y-%m-%d")
+        days_from_now = (datetime.now() - target_date).days
+        total_days = days_from_now + 365
+
+        all_data = fyers_client.get_stock_data(symbols, resolution="D", days=total_days)
+        if not all_data:
+            update_run_status(run_id, "failed")
+            return jsonify({"error": "No stock data retrieved. Token may be expired."}), 500
+
+        # Analyze stocks
+        results = []
+        for symbol, df in all_data.items():
+            try:
+                filtered = df[df.index <= pd.Timestamp(analysis_date)]
+                if len(filtered) < 50:
+                    continue
+                result = analyze_stock(symbol, filtered)
+                if result:
+                    results.append(result)
+            except:
+                continue
+
+        results.sort(key=lambda x: x["score"], reverse=True)
+        qualified = [r for r in results if r["score"] >= min_score]
+
+        # Save to DB
+        save_stock_analysis(run_id, results)
+
+        # AI analysis
+        ai_buy = ai_hold = ai_avoid = 0
+        ai_completed = 0
+
+        if not skip_ai and results:
+            try:
+                ai_result = analyze_with_llm(results, fyers_client=fyers_client)
+                if "error" not in ai_result:
+                    recs = ai_result.get("recommendations", {})
+                    if recs:
+                        save_ai_recommendations(run_id, recs)
+                        ai_buy = sum(1 for r in recs.values() if r.get('action') == 'BUY')
+                        ai_hold = sum(1 for r in recs.values() if r.get('action') == 'HOLD')
+                        ai_avoid = sum(1 for r in recs.values() if r.get('action') == 'AVOID')
+                        ai_completed = 1
+            except Exception as e:
+                print(f"  AI analysis error: {e}")
+
+        # Mark completed
+        update_run_status(run_id, "completed",
+                          total_stocks=len(results),
+                          qualified_count=len(qualified),
+                          ai_completed=ai_completed,
+                          ai_buy=ai_buy, ai_hold=ai_hold, ai_avoid=ai_avoid)
+
+        print(f"✅ [Run {run_id}] Complete: {len(results)} stocks, AI={ai_completed}")
+
+        # Return stored data
+        stored = get_stored_analysis(run_id, min_score)
+        return jsonify(stored)
+
+    except Exception as e:
+        print(f"!! Run daily error: {e}")
+        try:
+            update_run_status(run_id, "failed")
+        except:
+            pass
+        return jsonify({"error": f"Analysis failed: {str(e)}"}), 500
 
 
 @app.route("/api/status")
