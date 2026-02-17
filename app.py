@@ -53,13 +53,18 @@ def auto_connect():
                         webbrowser.open("http://127.0.0.1:5000")
                     return
                 else:
-                    print(f"\n⚠️  Saved token expired")
-                    fyers_client.access_token = None
-                    fyers_client.fyers = None
+                    # Token may be expired for profile but could still work for data
+                    # Keep it set — will fail gracefully on /api/analyze if truly expired
+                    print(f"\n⚠️  Saved token may be expired — keeping it, will verify on use")
+                    if not PRODUCTION:
+                        webbrowser.open("http://127.0.0.1:5000")
+                    return
             except:
-                print(f"\n⚠️  Saved token invalid")
-                fyers_client.access_token = None
-                fyers_client.fyers = None
+                # Same — keep token, let it fail on actual API call
+                print(f"\n⚠️  Saved token check failed — keeping it, will verify on use")
+                if not PRODUCTION:
+                    webbrowser.open("http://127.0.0.1:5000")
+                return
 
     # Fallback: open browser for login (local only) or wait for /auth/login
     session_model = fyersModel.SessionModel(
@@ -720,7 +725,12 @@ def api_analyze():
     total_days = days_from_now + 365
 
     # Get symbols for selected category
-    symbols = get_symbols_for_category(category)
+    try:
+        symbols = get_symbols_for_category(category)
+    except Exception as e:
+        print(f"❌ Error getting symbols for {category}: {e}")
+        return jsonify({"error": f"Failed to get stock list for {category}. Try again."}), 500
+
     category_label = {
         'nifty50': 'NIFTY 50',
         'nifty100': 'NIFTY 100',
@@ -731,21 +741,37 @@ def api_analyze():
 
     print(f"\n🔍 Analyzing {category_label} stocks for {analysis_date}...")
 
-    # Fetch stock data
-    all_data = fyers_client.get_stock_data(symbols, resolution="D", days=total_days)
+    # Fetch stock data — may take minutes for large sets
+    try:
+        all_data = fyers_client.get_stock_data(symbols, resolution="D", days=total_days)
+    except Exception as e:
+        print(f"❌ Error fetching stock data: {e}")
+        return jsonify({"error": f"Failed to fetch data from Fyers: {str(e)}"}), 500
+
+    if not all_data:
+        return jsonify({"error": "No stock data retrieved. Fyers API may be down or token expired. Try re-connecting."}), 500
 
     results = []
     skipped = []
+    analysis_errors = 0
     for symbol, df in all_data.items():
         # Filter data up to the selected date
-        filtered = df[df.index <= pd.Timestamp(analysis_date)]
-        if len(filtered) < 50:
-            skipped.append(symbol.replace("NSE:", "").replace("-EQ", ""))
-            continue
+        try:
+            filtered = df[df.index <= pd.Timestamp(analysis_date)]
+            if len(filtered) < 50:
+                skipped.append(symbol.replace("NSE:", "").replace("-EQ", ""))
+                continue
 
-        result = analyze_stock(symbol, filtered)
-        if result:
-            results.append(result)
+            result = analyze_stock(symbol, filtered)
+            if result:
+                results.append(result)
+        except Exception as e:
+            analysis_errors += 1
+            if analysis_errors <= 5:
+                print(f"  ⚠️  Error analyzing {symbol}: {e}")
+
+    if analysis_errors:
+        print(f"  ⚠️  {analysis_errors} stocks had analysis errors")
 
     # Sort by score descending
     results.sort(key=lambda x: x["score"], reverse=True)
@@ -753,6 +779,8 @@ def api_analyze():
     # Split into qualified and unqualified
     qualified = [r for r in results if r["score"] >= min_score]
     unqualified = [r for r in results if r["score"] < min_score]
+
+    print(f"✅ Analysis done: {len(results)} stocks analyzed, {len(qualified)} qualified")
 
     return jsonify({
         "date": analysis_date,

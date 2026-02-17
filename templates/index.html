@@ -872,7 +872,7 @@
             // Estimate count for loading text
             const countMap = { nifty50: '~48', nifty100: '~98', nifty200: '~200', nifty500: '~500', all: '~2100' };
             const labelMap = { nifty50: 'NIFTY 50', nifty100: 'NIFTY 100', nifty200: 'NIFTY 200', nifty500: 'NIFTY 500', all: 'All NSE' };
-            const timeMap = { nifty50: '~15 sec', nifty100: '~30 sec', nifty200: '~1 min', nifty500: '~2.5 min', all: '~10 min' };
+            const timeMap = { nifty50: '~15 sec', nifty100: '~30 sec', nifty200: '~1.5 min', nifty500: '~4 min', all: '~12 min' };
             document.getElementById('loadingText').innerHTML = `Fetching ${countMap[category] || ''} ${labelMap[category] || ''} stocks from Fyers...<br><span style="font-size:13px;color:var(--text-muted);">Estimated time: ${timeMap[category] || ''}</span>`;
 
             // Show loading
@@ -882,14 +882,51 @@
             btn.innerHTML = '⏳ Analyzing...';
 
             try {
+                // Timeout: scale with stock count
+                const timeoutMap = { nifty50: 120, nifty100: 180, nifty200: 300, nifty500: 600, all: 900 };
+                const timeoutSec = timeoutMap[category] || 300;
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeoutSec * 1000);
+
                 const res = await fetch('/api/analyze', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ date, min_score: minScore, category })
+                    body: JSON.stringify({ date, min_score: minScore, category }),
+                    signal: controller.signal
                 });
+                clearTimeout(timeoutId);
 
                 if (res.status === 401) {
-                    alert('Please login with Fyers first!');
+                    // Token expired — show auth section
+                    overlay.classList.remove('show');
+                    btn.disabled = false;
+                    btn.innerHTML = '🔍 Analyze';
+                    document.getElementById('authStatus').className = 'auth-status no';
+                    document.getElementById('statusDot').className = 'status-dot no';
+                    document.getElementById('authLabel').textContent = 'Expired';
+                    document.getElementById('mainContent').style.display = '';
+                    document.getElementById('mainContent').innerHTML = `
+                        <div class="auth-section" id="connectingState" style="max-width: 520px; margin: 60px auto; padding: 40px; background: var(--card); border-radius: 16px; border: 1px solid var(--border); text-align: center;">
+                            <div style="font-size: 40px; margin-bottom: 12px;">🔑</div>
+                            <h3 style="margin-bottom: 6px;">Fyers Token Expired</h3>
+                            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">Daily re-login required. Click below, sign in, then paste the redirect URL.</p>
+                            <button class="btn btn-primary" id="loginBtn" onclick="openFyersLogin()" style="padding: 12px 32px; font-size: 15px; margin-bottom: 16px; cursor: pointer;">
+                                🔐 Open Fyers Login
+                            </button>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="authUrlInput" placeholder="Paste the redirect URL here..."
+                                    style="flex:1; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 12px 16px; border-radius: 10px; font-size: 14px; outline: none;"
+                                    oninput="autoConnect(this.value)">
+                                <button class="btn btn-primary" id="connectBtn" onclick="connectNow()">Connect</button>
+                            </div>
+                            <div id="connectMsg" style="margin-top: 12px; font-size: 13px;"></div>
+                        </div>`;
+                    return;
+                }
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    alert(errData.error || `Server error (${res.status}). Please try again.`);
                     overlay.classList.remove('show');
                     btn.disabled = false;
                     btn.innerHTML = '🔍 Analyze';
@@ -916,7 +953,11 @@
                 mainContent.style.display = 'none';
 
             } catch (err) {
-                alert('Error: ' + err.message);
+                if (err.name === 'AbortError') {
+                    alert('Request timed out. The server is still processing — try a smaller stock universe or wait and retry.');
+                } else {
+                    alert('Error: ' + err.message + '\n\nTip: If Fyers token expired, reconnect via the auth section.');
+                }
             } finally {
                 overlay.classList.remove('show');
                 btn.disabled = false;

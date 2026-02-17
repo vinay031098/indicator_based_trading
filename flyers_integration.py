@@ -305,29 +305,81 @@ class FyersClient:
         """
         Fetch historical data for a list of stock symbols.
         Returns dict: {symbol: DataFrame}
-        Rate limit: 10/sec, 200/min — we add delays.
+        Rate limit: 10/sec, 200/min — adaptive delays + retry with backoff.
         """
         stock_data = {}
         total = len(symbols)
-        label = f"{total} stocks"
+        failed_symbols = []  # track for retry
+        requests_this_minute = 0
+        minute_start = time.time()
 
-        print(f"\n📊 Downloading {label} from Fyers...")
+        print(f"\n📊 Downloading {total} stocks from Fyers...")
 
-        for i, symbol in enumerate(symbols, 1):
+        def _fetch_one(symbol: str, attempt: int = 1) -> Optional[pd.DataFrame]:
+            """Fetch a single symbol with retry on failure."""
+            nonlocal requests_this_minute, minute_start
+
+            # Per-minute rate limit: hard cap at 180/min (buffer under 200)
+            requests_this_minute += 1
+            elapsed = time.time() - minute_start
+            if requests_this_minute >= 180 and elapsed < 60:
+                wait = 60 - elapsed + 1
+                print(f"  ⏸️  Rate limit pause ({wait:.0f}s) — {requests_this_minute} reqs in {elapsed:.0f}s")
+                time.sleep(wait)
+                requests_this_minute = 0
+                minute_start = time.time()
+            elif elapsed >= 60:
+                # Reset counter each minute
+                requests_this_minute = 1
+                minute_start = time.time()
+
             df = self.get_history(symbol, resolution=resolution, days=days)
+            return df
+
+        # Pass 1: fetch all symbols
+        for i, symbol in enumerate(symbols, 1):
+            df = _fetch_one(symbol)
             if df is not None and len(df) > 50:
                 stock_data[symbol] = df
-                if i % 50 == 0 or i == total or total <= 100:
-                    print(f"  [{i}/{total}] ✓ {symbol} ({len(df)} candles)")
+                if i % 100 == 0 or i == total or total <= 100:
+                    print(f"  [{i}/{total}] ✓ {symbol} ({len(df)} candles) — {len(stock_data)} ok")
             else:
-                if total <= 100:
-                    print(f"  [{i}/{total}] ✗ {symbol} (skipped)")
+                failed_symbols.append(symbol)
+                if total <= 200:
+                    print(f"  [{i}/{total}] ✗ {symbol} (will retry)")
 
-            # Rate limiting: 10/sec but burst-safe
-            if i % 9 == 0:
-                time.sleep(1.0)  # pause every 9 requests to stay under 10/sec
+            # Per-request delay: ~8 req/sec
+            if i % 8 == 0:
+                time.sleep(1.1)
             else:
-                time.sleep(0.12)
+                time.sleep(0.13)
+
+        # Pass 2: retry failed symbols (rate limit / transient errors)
+        if failed_symbols:
+            print(f"\n🔄 Retrying {len(failed_symbols)} failed symbols...")
+            time.sleep(2)  # cool-down before retry
+            requests_this_minute = 0
+            minute_start = time.time()
+            still_failed = []
+
+            for i, symbol in enumerate(failed_symbols, 1):
+                df = _fetch_one(symbol, attempt=2)
+                if df is not None and len(df) > 50:
+                    stock_data[symbol] = df
+                    print(f"  [retry {i}/{len(failed_symbols)}] ✓ {symbol} recovered")
+                else:
+                    still_failed.append(symbol)
+
+                # Slower on retry — 5 req/sec
+                if i % 5 == 0:
+                    time.sleep(1.2)
+                else:
+                    time.sleep(0.2)
+
+            if still_failed and len(still_failed) <= 50:
+                print(f"  ⚠️  {len(still_failed)} stocks still failed: {', '.join(s.split(':')[1].split('-')[0] for s in still_failed[:20])}")
+            elif still_failed:
+                print(f"  ⚠️  {len(still_failed)} stocks still failed after retry")
 
         print(f"\n✅ Got data for {len(stock_data)}/{total} stocks")
         return stock_data
