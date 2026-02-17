@@ -29,9 +29,7 @@ import pandas as pd
 from flyers_integration import FyersClient, get_symbols_for_category
 from llm_analyzer import analyze_with_llm
 from data_store import create_run, save_stock_analysis, save_ai_recommendations, update_run_status, get_run_by_date
-
-# Import analyze_stock from app.py
-from app import analyze_stock
+from indicators import analyze_stock
 
 # ─── Config ───────────────────────────────────────────────────────
 APP_ID = os.environ.get("FYERS_APP_ID", "HTEDSURO6P-100")
