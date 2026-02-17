@@ -616,6 +616,248 @@
             color: var(--text-muted);
         }
         .ai-meta span { display: flex; align-items: center; gap: 4px; }
+
+        /* ─── Rules Modal ─────────────────────────────────────── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 5000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .modal-overlay.show { display: flex; }
+        .modal-box {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            width: 680px;
+            max-width: 92vw;
+            max-height: 85vh;
+            overflow-y: auto;
+            padding: 0;
+            box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+        }
+        .modal-header {
+            position: sticky;
+            top: 0;
+            background: var(--card);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            z-index: 1;
+        }
+        .modal-header h2 {
+            font-size: 18px;
+            background: linear-gradient(135deg, #6c63ff, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        .modal-close:hover { background: var(--bg); color: var(--text); }
+        .modal-body { padding: 20px 24px; }
+        .rule-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .rule-item:last-child { border-bottom: none; }
+        .rule-num {
+            min-width: 28px;
+            height: 28px;
+            background: var(--accent);
+            color: #fff;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .rule-content { flex: 1; }
+        .rule-name {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        .rule-desc {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+        .rule-points {
+            min-width: 50px;
+            text-align: right;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--green);
+        }
+
+        /* ─── Chatbot Widget ──────────────────────────────────── */
+        .chat-fab {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6c63ff, #3b82f6);
+            color: white;
+            border: none;
+            font-size: 26px;
+            cursor: pointer;
+            z-index: 4000;
+            box-shadow: 0 4px 20px rgba(108,99,255,0.4);
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .chat-fab:hover { transform: scale(1.1); box-shadow: 0 6px 28px rgba(108,99,255,0.5); }
+        .chat-fab.hidden { display: none; }
+        .chat-panel {
+            position: fixed;
+            bottom: 90px;
+            right: 24px;
+            width: 400px;
+            max-width: calc(100vw - 32px);
+            height: 520px;
+            max-height: calc(100vh - 120px);
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            z-index: 4001;
+            display: none;
+            flex-direction: column;
+            box-shadow: 0 16px 60px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+        .chat-panel.open { display: flex; }
+        .chat-header {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .chat-header h3 {
+            font-size: 15px;
+            background: linear-gradient(135deg, #6c63ff, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .chat-msg {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 13px;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+        .chat-msg.user {
+            background: var(--accent);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .chat-msg.bot {
+            background: var(--bg);
+            color: var(--text);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+            border: 1px solid var(--border);
+        }
+        .chat-msg.bot .stock-tag {
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .chat-typing {
+            align-self: flex-start;
+            padding: 10px 14px;
+            background: var(--bg);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            font-size: 13px;
+            color: var(--text-muted);
+            display: none;
+        }
+        .chat-typing.show { display: block; }
+        .typing-dots span {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            margin: 0 2px;
+            animation: typingBounce 1.4s infinite ease-in-out;
+        }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typingBounce {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+        .chat-input-area {
+            padding: 12px 14px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 8px;
+        }
+        .chat-input {
+            flex: 1;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            outline: none;
+            resize: none;
+            min-height: 40px;
+            max-height: 80px;
+        }
+        .chat-input:focus { border-color: var(--accent); }
+        .chat-input::placeholder { color: var(--text-muted); }
+        .chat-send {
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            width: 40px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+        .chat-send:hover { background: var(--accent-hover); }
+        .chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -651,9 +893,12 @@
                 <span class="logo-icon">📊</span>
                 <h1>NSE Indicator Dashboard</h1>
             </div>
-            <div class="auth-status {{ 'ok' if authenticated else 'no' }}" id="authStatus">
-                <span class="status-dot {{ 'ok' if authenticated else 'no' }}" id="statusDot"></span>
-                <span id="authLabel">{{ 'Connected' if authenticated else 'Not Connected' }}</span>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <button onclick="document.getElementById('rulesModal').classList.add('show')" style="background:transparent; border:1px solid var(--border); color:var(--text); padding:6px 14px; border-radius:20px; cursor:pointer; font-size:13px; font-weight:500; transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">📋 Indicator Rules</button>
+                <div class="auth-status {{ 'ok' if authenticated else 'no' }}" id="authStatus">
+                    <span class="status-dot {{ 'ok' if authenticated else 'no' }}" id="statusDot"></span>
+                    <span id="authLabel">{{ 'Connected' if authenticated else 'Not Connected' }}</span>
+                </div>
             </div>
         </div>
 
@@ -1288,7 +1533,125 @@
 
     </script>
 
+    <!-- Rules Modal -->
+    <div class="modal-overlay" id="rulesModal" onclick="if(event.target===this) this.classList.remove('show')">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h2>📋 25 Indicator Scoring Rules (Max 30 pts)</h2>
+                <button class="modal-close" onclick="document.getElementById('rulesModal').classList.remove('show')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="rule-item"><div class="rule-num">1</div><div class="rule-content"><div class="rule-name">📉 RSI (Relative Strength Index)</div><div class="rule-desc">RSI &lt; 30 → Oversold (strong buy zone)<br>RSI 30–40 → Low RSI (mild buy)<br>RSI &gt; 70 → Overbought (caution)</div></div><div class="rule-points">+2 / +1</div></div>
+                <div class="rule-item"><div class="rule-num">2</div><div class="rule-content"><div class="rule-name">✅ MACD Crossover</div><div class="rule-desc">MACD line crosses above Signal line → Bullish momentum starting</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">3</div><div class="rule-content"><div class="rule-name">📈 MACD Histogram Rising</div><div class="rule-desc">Histogram is positive AND rising → Accelerating bullish momentum</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">4</div><div class="rule-content"><div class="rule-name">⬇️ Below 20-SMA (Dip Buy)</div><div class="rule-desc">Price below 20-day SMA → Potential mean-reversion buy</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">5</div><div class="rule-content"><div class="rule-name">🔻 Stochastic Oversold</div><div class="rule-desc">%K &lt; 20 → Oversold territory<br>%K &lt; 20 AND %K &gt; %D → Bullish cross in oversold</div></div><div class="rule-points">+1 / +2</div></div>
+                <div class="rule-item"><div class="rule-num">6</div><div class="rule-content"><div class="rule-name">🚀 Near 52-Week High</div><div class="rule-desc">&lt; 5% from 52W high → Strong momentum<br>&lt; 10% → Close to high</div></div><div class="rule-points">+2 / +1</div></div>
+                <div class="rule-item"><div class="rule-num">7</div><div class="rule-content"><div class="rule-name">⭐ Golden Cross</div><div class="rule-desc">Price &gt; SMA20 &gt; SMA50 &gt; SMA200 → Perfect MA alignment (very bullish)</div></div><div class="rule-points">+2</div></div>
+                <div class="rule-item"><div class="rule-num">8</div><div class="rule-content"><div class="rule-name">💎 Below Bollinger Lower Band</div><div class="rule-desc">Price below lower BB → Statistically oversold, likely to revert</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">9</div><div class="rule-content"><div class="rule-name">🔀 EMA 9/21 Cross</div><div class="rule-desc">EMA9 crosses above EMA21 → Short-term bullish signal<br>EMA9 &gt; EMA21 → Already bullish</div></div><div class="rule-points">+2 / +1</div></div>
+                <div class="rule-item"><div class="rule-num">10</div><div class="rule-content"><div class="rule-name">💪 ADX Trend + DI+</div><div class="rule-desc">ADX &gt; 25 with DI+ &gt; DI- → Strong uptrend<br>ADX 20–25 with DI+ &gt; DI- → Moderate uptrend</div></div><div class="rule-points">+2 / +1</div></div>
+                <div class="rule-item"><div class="rule-num">11</div><div class="rule-content"><div class="rule-name">🎯 CCI (Commodity Channel Index)</div><div class="rule-desc">CCI &lt; -100 → Oversold, potential reversal<br>CCI &gt; 100 → Overbought zone</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">12</div><div class="rule-content"><div class="rule-name">🏷️ Williams %R</div><div class="rule-desc">%R &lt; -80 → Oversold territory (buy signal)</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">13</div><div class="rule-content"><div class="rule-name">💰 MFI (Money Flow Index)</div><div class="rule-desc">MFI &lt; 20 → Strong money inflow (oversold)<br>MFI 20–40 → Moderate buy<br>MFI &gt; 80 → Overbought</div></div><div class="rule-points">+2 / +1</div></div>
+                <div class="rule-item"><div class="rule-num">14</div><div class="rule-content"><div class="rule-name">📊 OBV (On-Balance Volume)</div><div class="rule-desc">OBV rising + Price up → Volume confirms the uptrend</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">15</div><div class="rule-content"><div class="rule-name">🎪 Below VWAP</div><div class="rule-desc">Price below VWAP → Trading below average price (undervalued intraday)</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">16</div><div class="rule-content"><div class="rule-name">⚡ ROC (Rate of Change)</div><div class="rule-desc">ROC &gt; 5% → Strong positive momentum<br>ROC &lt; -10% → Weak momentum</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">17</div><div class="rule-content"><div class="rule-name">🏦 CMF (Chaikin Money Flow)</div><div class="rule-desc">CMF &gt; 0.1 → Net buying pressure<br>CMF &lt; -0.1 → Net selling pressure</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">18</div><div class="rule-content"><div class="rule-name">☁️ Ichimoku Cloud</div><div class="rule-desc">Price above both Senkou Span A & B → Bullish cloud position</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">19</div><div class="rule-content"><div class="rule-name">⛩️ Ichimoku TK Cross</div><div class="rule-desc">Tenkan-sen &gt; Kijun-sen → Short-term trend favors bulls</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">20</div><div class="rule-content"><div class="rule-name">🏔️ Pivot Points</div><div class="rule-desc">Price above R1 resistance → Breakout strength<br>Price below S1 → Support lost</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">21</div><div class="rule-content"><div class="rule-name">🤏 Bollinger Squeeze</div><div class="rule-desc">BB width &lt; 5% → Low volatility squeeze → Breakout imminent</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">22</div><div class="rule-content"><div class="rule-name">🛒 Near 52W Low (Value)</div><div class="rule-desc">Within 10% of 52-week low → Deep value territory</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">23</div><div class="rule-content"><div class="rule-name">🔊 Volume Spike + Price Up</div><div class="rule-desc">Volume &gt; 1.5x average AND price is up → Institutional buying</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">24</div><div class="rule-content"><div class="rule-name">🟢 Consecutive Green Candles</div><div class="rule-desc">3+ green candles in a row → Sustained buying momentum</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">25</div><div class="rule-content"><div class="rule-name">🏗️ Above 200-SMA</div><div class="rule-desc">Price &gt; SMA200 by 5%+ → Long-term uptrend intact</div></div><div class="rule-points">+1</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chatbot FAB + Panel -->
+    <button class="chat-fab" id="chatFab" onclick="toggleChat()" title="Stock AI Chat">💬</button>
+    <div class="chat-panel" id="chatPanel">
+        <div class="chat-header">
+            <h3>🤖 Stock AI Assistant</h3>
+            <button class="modal-close" onclick="toggleChat()" style="font-size:20px;">&times;</button>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+            <div class="chat-msg bot">Hi! 👋 Ask me anything about stocks, indicators, or trading. Try:<br><br>• <em>"Analyze RELIANCE"</em><br>• <em>"Is TCS a good buy?"</em><br>• <em>"What does RSI oversold mean?"</em><br>• <em>"Compare INFY vs TCS"</em></div>
+        </div>
+        <div class="chat-typing" id="chatTyping"><div class="typing-dots"><span></span><span></span><span></span></div></div>
+        <div class="chat-input-area">
+            <textarea class="chat-input" id="chatInput" placeholder="Ask about any stock..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+            <button class="chat-send" id="chatSendBtn" onclick="sendChat()">➤</button>
+        </div>
+    </div>
+
     </div><!-- /dashboardContainer -->
+
+    <script>
+        // ─── Chatbot Logic ──────────────────────────────────────
+        function toggleChat() {
+            const panel = document.getElementById('chatPanel');
+            const fab = document.getElementById('chatFab');
+            const isOpen = panel.classList.toggle('open');
+            fab.innerHTML = isOpen ? '✕' : '💬';
+            if (isOpen) document.getElementById('chatInput').focus();
+        }
+
+        async function sendChat() {
+            const input = document.getElementById('chatInput');
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            const messages = document.getElementById('chatMessages');
+            const typing = document.getElementById('chatTyping');
+            const sendBtn = document.getElementById('chatSendBtn');
+
+            // Add user message
+            const userEl = document.createElement('div');
+            userEl.className = 'chat-msg user';
+            userEl.textContent = msg;
+            messages.appendChild(userEl);
+            input.value = '';
+            sendBtn.disabled = true;
+
+            // Show typing
+            typing.classList.add('show');
+            messages.scrollTop = messages.scrollHeight;
+
+            try {
+                // Include analyzed stock data for context if available
+                const stockContext = allResults.length > 0 ? allResults.slice(0, 20).map(s => ({
+                    name: s.name, price: s.price, score: s.score, rsi: s.rsi,
+                    macd_hist: s.macd_hist, change_pct: s.change_pct,
+                    sma20: s.sma20, sma50: s.sma50, sma200: s.sma200,
+                    adx: s.adx, vol_ratio: s.vol_ratio
+                })) : [];
+
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: msg, stock_context: stockContext })
+                });
+                const data = await res.json();
+
+                const botEl = document.createElement('div');
+                botEl.className = 'chat-msg bot';
+                botEl.innerHTML = data.reply || data.error || 'No response';
+                messages.appendChild(botEl);
+            } catch (err) {
+                const errEl = document.createElement('div');
+                errEl.className = 'chat-msg bot';
+                errEl.textContent = '❌ Error: ' + err.message;
+                messages.appendChild(errEl);
+            } finally {
+                typing.classList.remove('show');
+                sendBtn.disabled = false;
+                messages.scrollTop = messages.scrollHeight;
+            }
+        }
+    </script>
 
     <script>
         // ─── Login Logic ─────────────────────────────────────────

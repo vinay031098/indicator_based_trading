@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from flyers_integration import FyersClient, NIFTY_50_FYERS, get_symbols_for_category, fetch_all_nse_equity_symbols
 from fyers_apiv3 import fyersModel
 from llm_analyzer import analyze_with_llm
+import requests
 
 # ─── Config (env-based for local vs production) ─────────────────────────
 PRODUCTION = os.environ.get("PRODUCTION", "0") == "1"
@@ -817,6 +818,77 @@ def api_llm_analyze():
     except Exception as e:
         print(f"!! LLM analyze error: {e}")
         return jsonify({"error": f"AI analysis failed: {str(e)}"}), 500
+
+
+@app.route("/api/chat", methods=["POST"])
+def api_chat():
+    """Chatbot endpoint — sends user question to GitHub Models for stock-related answers."""
+    try:
+        data = request.get_json()
+        message = data.get("message", "").strip()
+        stock_context = data.get("stock_context", [])
+
+        if not message:
+            return jsonify({"error": "Empty message"}), 400
+
+        token = os.environ.get("GITHUB_TOKEN", "").strip()
+        if not token:
+            return jsonify({"error": "GITHUB_TOKEN not set. AI chat unavailable."}), 500
+
+        # Build context from analyzed stocks if available
+        context_text = ""
+        if stock_context:
+            context_text = "\n\nCurrently analyzed stocks (top results from dashboard):\n"
+            for s in stock_context[:15]:
+                context_text += f"  {s.get('name','?')}: ₹{s.get('price','?')} ({s.get('change_pct',0):+.1f}%) Score={s.get('score',0)}/30 RSI={s.get('rsi','?')} MACD_hist={s.get('macd_hist','?')} ADX={s.get('adx','?')}\n"
+
+        system_prompt = (
+            "You are a professional Indian stock market analyst assistant on an NSE trading dashboard.\n"
+            "You have deep knowledge of NSE/BSE stocks, technical analysis, fundamental analysis, "
+            "sectors, market trends, and Indian economy.\n\n"
+            "Guidelines:\n"
+            "- Give concise, actionable answers (2-4 sentences for simple questions, more for analysis)\n"
+            "- Use ₹ symbol for prices\n"
+            "- When analyzing a stock, mention key indicators like RSI, MACD, support/resistance\n"
+            "- Be honest about uncertainty — say 'based on technical indicators' not 'will definitely'\n"
+            "- Format important terms in <strong>bold</strong> HTML tags\n"
+            "- Use <br> for line breaks in your response\n"
+            "- If you mention Buy/Sell/Hold, make it clear this is not financial advice\n"
+            + context_text
+        )
+
+        resp = requests.post(
+            "https://models.inference.ai.azure.com/chat/completions",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": message}
+                ],
+                "temperature": 0.4,
+                "max_tokens": 1024
+            },
+            timeout=30
+        )
+
+        if resp.status_code != 200:
+            return jsonify({"error": f"AI error ({resp.status_code})"}), 500
+
+        reply = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+        if not reply:
+            return jsonify({"error": "Empty AI response"}), 500
+
+        return jsonify({"reply": reply})
+
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "AI request timed out. Try again."}), 500
+    except Exception as e:
+        print(f"!! Chat error: {e}")
+        return jsonify({"error": f"Chat failed: {str(e)}"}), 500
 
 
 @app.route("/api/status")
