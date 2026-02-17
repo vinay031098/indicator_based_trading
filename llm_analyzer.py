@@ -18,10 +18,13 @@ import time
 import requests
 import numpy as np
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+load_dotenv()  # Ensure .env is loaded
 
 # ─── API Key ──────────────────────────────────────────────────────
 # GitHub PAT with models:read scope — get one at https://github.com/settings/tokens
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+def _get_github_token():
+    return os.environ.get("GITHUB_TOKEN", "")
 
 # GitHub Models endpoint (OpenAI-compatible)
 GITHUB_MODELS_URL = "https://models.inference.ai.azure.com/chat/completions"
@@ -217,7 +220,8 @@ def _build_batch_prompt(stocks_batch):
 
 def _call_github_models(prompt):
     """Call GitHub Models API (OpenAI-compatible) and return parsed JSON list."""
-    if not GITHUB_TOKEN:
+    token = _get_github_token()
+    if not token:
         print("  !! GITHUB_TOKEN not set - cannot call LLM")
         return None
 
@@ -225,7 +229,7 @@ def _call_github_models(prompt):
         resp = requests.post(
             GITHUB_MODELS_URL,
             headers={
-                "Authorization": f"Bearer {GITHUB_TOKEN}",
+                "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json"
             },
             json={
@@ -285,10 +289,11 @@ def analyze_with_llm(stocks_data, fyers_client=None):
     If fyers_client is provided, also fetches 15-min candle data for last 3 days.
     """
 
-    if not GITHUB_TOKEN:
+    token = _get_github_token()
+    if not token:
         return {"error": "GITHUB_TOKEN not set. Add it in Render env vars or .env file."}
 
-    print(f">> LLM provider: GitHub Models (gpt-4o-mini)")
+    print(f">> LLM provider: GitHub Models (gpt-4o-mini) [token: {token[:8]}...]")
 
     valid = [s for s in stocks_data if s is not None]
     if not valid:
