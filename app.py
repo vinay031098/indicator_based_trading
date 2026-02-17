@@ -798,14 +798,16 @@ def api_analyze():
 
 @app.route("/api/llm-analyze", methods=["POST"])
 def api_llm_analyze():
-    """Send analyzed stock data to LLM for buy/hold/avoid recommendations."""
+    """Send analyzed stock data to LLM for buy/hold/avoid recommendations.
+    Also fetches 15-min candle data (last 3 days) for chart pattern analysis."""
     data = request.get_json()
     stocks = data.get("stocks", [])
 
     if not stocks:
         return jsonify({"error": "No stock data provided"}), 400
 
-    result = analyze_with_llm(stocks)
+    # Pass fyers_client so LLM analyzer can fetch 15-min candle data
+    result = analyze_with_llm(stocks, fyers_client=fyers_client)
 
     if "error" in result:
         return jsonify(result), 500
