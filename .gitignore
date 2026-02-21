@@ -7,6 +7,5 @@ __pycache__/
 fyersApi.log
 fyersRequests.log
 *.bak
-analysis_data.db
 analysis_data.db-wal
 analysis_data.db-shm
