@@ -343,12 +343,12 @@ def analyze_stock(symbol, data):
             reasons.append({"text": "Below 20-SMA (dip buy)", "type": "bullish", "icon": "⬇️"})
 
         # 5. Stochastic Oversold
-        if stoch_k < 20:
-            score += 1
-            reasons.append({"text": f"Stochastic Oversold ({stoch_k:.1f})", "type": "bullish", "icon": "🔻"})
-        elif stoch_k < 20 and stoch_k > stoch_d:
+        if stoch_k < 20 and stoch_k > stoch_d:
             score += 2
             reasons.append({"text": f"Stochastic Bullish Cross ({stoch_k:.1f})", "type": "bullish", "icon": "🔄"})
+        elif stoch_k < 20:
+            score += 1
+            reasons.append({"text": f"Stochastic Oversold ({stoch_k:.1f})", "type": "bullish", "icon": "🔻"})
 
         # 6. Near 52W High (Momentum)
         if dist_52w_high < 5:
