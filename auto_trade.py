@@ -1,60 +1,52 @@
 #!/usr/bin/env python3
 """
-Auto-Trading Script - Analyzes NIFTY 50 via Fyers data and executes trades
+Auto-Trading Script — analyze NIFTY 50 via Fyers data and (optionally) execute trades.
 Run: python auto_trade.py
 """
 
-import sys
-sys.path.insert(0, '/Users/vinay/Library/CloudStorage/GoogleDrive-vinay904412@gmail.com/My Drive/indicators_trade')
+from __future__ import annotations
 
+import logging
+
+from config import configure_logging
+from fyers_integration import provider
 from main import NiftyAnalyzer
-from flyers_integration import FyersClient
 
-APP_ID = "JIHLRUYWGE-100"
-SECRET_ID = "DZQQB3O1GS"
+logger = logging.getLogger(__name__)
 
 
-def main():
-    print("=" * 80)
-    print("NIFTY 50 AUTO-TRADER (FYERS)")
-    print("=" * 80)
+def main() -> int:
+    configure_logging()
 
-    # 1. Authenticate with Fyers
-    print("\n1. CONNECTING TO FYERS...")
-    client = FyersClient(APP_ID, SECRET_ID)
-    if not client.authenticate():
-        print("   ✗ Authentication failed. Exiting.")
-        return
+    client = provider.get_client()
+    if client is None:
+        client = provider.build_auth_client()
+        if not client.authenticate():
+            logger.error("Authentication failed. Exiting.")
+            return 1
 
-    print("   ✓ Connected!")
-
-    # 2. Analyze stocks using Fyers data
-    print("\n2. ANALYZING NIFTY 50 (Fyers data)...")
     analyzer = NiftyAnalyzer(client)
-    results = analyzer.analyze_nifty50()
-
-    # 3. Get top stocks
-    top_stocks = [s for s in results if s['score'] >= 4][:10]
+    results = analyzer.analyze_nifty50(min_score=4)
+    top_stocks = results[:10]
 
     if not top_stocks:
-        print("No stocks with score >= 4 found.")
-        return
+        logger.info("No stocks with score >= 4 found.")
+        return 0
 
-    print(f"\n3. TOP QUALIFIED STOCKS ({len(top_stocks)}):")
+    print(f"\nTop qualified stocks ({len(top_stocks)}):")
     for stock in top_stocks[:5]:
-        print(f"   • {stock['symbol']}: Score {stock['score']}, Price ₹{stock['price']:.2f}")
+        print(f"  - {stock['name']}: score {stock['score']}, price Rs{stock['price']:.2f}")
 
-    # 4. Ask for confirmation & execute
-    confirm = input("\n4. EXECUTE TRADES? (Enter number of stocks to trade, 0 to skip): ").strip()
-
+    confirm = input("\nExecute trades? (number of stocks to trade, 0 to skip): ").strip()
     if confirm.isdigit() and int(confirm) > 0:
-        num_trades = min(int(confirm), len(top_stocks))
-        executed = client.execute_trades(top_stocks[:num_trades], qty_per_stock=1)
-        successful = sum(1 for t in executed if t['success'])
-        print(f"\n✓ {successful}/{num_trades} orders placed successfully")
+        num = min(int(confirm), len(top_stocks))
+        executed = client.execute_trades(top_stocks[:num], qty_per_stock=1)
+        ok = sum(1 for t in executed if t["success"])
+        print(f"\n{ok}/{num} orders placed successfully.")
     else:
-        print("   Skipped trading.")
+        print("Skipped trading.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

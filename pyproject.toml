@@ -1,0 +1,158 @@
+[project]
+name = "indicator-based-trading"
+version = "1.0.0"
+description = "Flask dashboard that analyses NSE stocks with technical indicators, scoring, and an optional LLM, backed by the Fyers broker API."
+requires-python = ">=3.11"
+readme = "README.md"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Ruff — linting + import sorting
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# Generated assets / vendored data / local artefacts should never be linted.
+extend-exclude = [
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "deploy",
+    "static",
+    "templates",
+    "migrations",
+]
+
+[tool.ruff.lint]
+# A pragmatic, non-pedantic rule set:
+#   E/F  - pycodestyle + pyflakes (core correctness)
+#   I    - import sorting (isort)
+#   UP   - pyupgrade (modern syntax)
+#   B    - flake8-bugbear (likely bugs)
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+    "E501",   # line length is enforced by black, not ruff
+    "E741",   # ambiguous variable names (e.g. `l` for "low") are intentional here
+    "B008",   # function calls in argument defaults (common Flask/pydantic pattern)
+    "B904",   # raise ... from err — nice-to-have, not enforced on legacy code
+    "UP038",  # isinstance(x, (a, b)) tuple form — still perfectly valid
+    # The codebase deliberately uses `from __future__ import annotations` together
+    # with explicit `typing` imports; the pyupgrade annotation rewrites below would
+    # require churning every module, so they are disabled project-wide.
+    "UP006",  # prefer dict over typing.Dict
+    "UP007",  # prefer X | Y over Optional[X] / Union
+    "UP035",  # deprecated typing imports
+    "UP037",  # remove quotes from annotations
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Management/CLI scripts intentionally use print() for human-facing output.
+"manage.py" = ["E402"]
+"main.py" = ["E402"]
+"auto_trade.py" = ["E402"]
+"worker.py" = ["E402", "F401"]
+# Tests may use fixtures/imports in ways linters dislike.
+"tests/*" = ["E402", "F401", "F811", "I001"]
+"test_gemini.py" = ["E402", "F401", "I001"]
+# Re-export shim kept for backward compatibility.
+"data_store.py" = ["F401", "F403", "F405"]
+# Pre-existing unused imports / import ordering in modules owned by other workstreams.
+"alerts.py" = ["F401"]
+"app/routes/analysis.py" = ["I001"]
+"app/routes/auth_routes.py" = ["F401"]
+"backtest.py" = ["F401"]
+"daily_runner.py" = ["F401", "I001"]
+"db.py" = ["F401"]
+"jobs.py" = ["F401"]
+"llm_analyzer.py" = ["F401", "F541", "I001"]
+"security.py" = ["UP015"]
+"strategy.py" = ["F401", "I001"]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "analysis_service",
+    "app",
+    "config",
+    "db",
+    "data_store",
+    "fyers_integration",
+    "indicators",
+    "jobs",
+    "llm_analyzer",
+    "security",
+    "strategy",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Black — formatting
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+extend-exclude = '''
+/(
+    \.venv
+  | venv
+  | build
+  | dist
+  | deploy
+  | static
+  | templates
+  | migrations
+)/
+'''
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Mypy — lenient type checking (advisory, not a hard gate)
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+follow_imports = "silent"
+warn_unused_ignores = false
+warn_redundant_casts = false
+no_implicit_optional = false
+check_untyped_defs = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+exclude = '(^|/)(\.venv|venv|build|dist|deploy|static|templates|migrations)/'
+
+# Third-party libraries without type stubs.
+[[tool.mypy.overrides]]
+module = [
+    "fyers_apiv3.*",
+    "pandas.*",
+    "pandas_ta.*",
+    "rq.*",
+    "flask_talisman.*",
+    "flask_limiter.*",
+    "flask_caching.*",
+    "flask_wtf.*",
+]
+ignore_missing_imports = true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pytest
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Coverage (used by the optional `pytest --cov` CI step)
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+branch = true
+omit = [
+    "tests/*",
+    ".venv/*",
+    "deploy/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true

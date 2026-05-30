@@ -11,20 +11,20 @@ Sends stocks in batches to avoid output truncation.
 Includes JSON repair for partial/malformed responses.
 """
 
-import os
 import json
 import re
 import time
 import requests
 import numpy as np
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
-load_dotenv()  # Ensure .env is loaded
+
+from config import settings
+
 
 # ─── API Key ──────────────────────────────────────────────────────
 # GitHub PAT with models:read scope — get one at https://github.com/settings/tokens
 def _get_github_token():
-    return os.environ.get("GITHUB_TOKEN", "").strip()
+    return (settings.github_token or "").strip()
 
 # GitHub Models endpoint (OpenAI-compatible)
 GITHUB_MODELS_URL = "https://models.inference.ai.azure.com/chat/completions"

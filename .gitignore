@@ -1,11 +1,28 @@
 .venv/
+venv/
 __pycache__/
 *.pyc
 .env
 .env.production
+.env.local
+
+# Secrets / tokens (never commit)
 .fyers_token
+.fyers_token.enc
 fyersApi.log
 fyersRequests.log
-*.bak
+
+# Caches
+.nse_symbols_cache.json
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Database (Task 31 — regenerate via daily_runner.py)
+analysis_data.db
 analysis_data.db-wal
 analysis_data.db-shm
+
+*.bak
