@@ -33,6 +33,25 @@ export function signalLabel(signal) {
     }
 }
 
+/** Must match ``strategy.STRATEGY.thresholds`` (buy / sell). */
+export const SIGNAL_THRESHOLDS = { buy: 3, sell: -3 };
+
+export function netScore(stock) {
+    if (typeof stock === 'number') return stock;
+    const bull = Number(stock.score) || 0;
+    const bear = Number(stock.bear_score) || 0;
+    if (stock.net_score != null && stock.net_score !== '') return Number(stock.net_score);
+    return bull - bear;
+}
+
+/** Derive BUY / NEUTRAL / SELL from net score (single source of truth). */
+export function deriveSignal(stockOrNet) {
+    const net = typeof stockOrNet === 'object' ? netScore(stockOrNet) : Number(stockOrNet);
+    if (net >= SIGNAL_THRESHOLDS.buy) return 'BUY';
+    if (net <= SIGNAL_THRESHOLDS.sell) return 'SELL';
+    return 'NEUTRAL';
+}
+
 export function aiActionLabel(action) {
     switch ((action || '').toUpperCase()) {
         case 'BUY': return { cls: 'buy', text: 'Buy', shape: '\u25B2' };

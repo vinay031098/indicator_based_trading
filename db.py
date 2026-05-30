@@ -332,19 +332,18 @@ def get_run_by_date(run_date: str, category: str = "all") -> Optional[Dict]:
 
 
 def _enrich_stock_fields(d: Dict) -> Dict:
-    """Derive net_score and signal for rows saved before those fields existed."""
+    """Derive net_score and signal from bull/bear scores (always recompute)."""
     bull = int(d.get("score") or 0)
     bear = int(d.get("bear_score") or 0)
-    d["net_score"] = bull - bear
-    sig = (d.get("signal") or "").strip().upper()
-    if not sig:
-        th = STRATEGY.thresholds
-        if d["net_score"] >= th.buy:
-            d["signal"] = "BUY"
-        elif d["net_score"] <= th.sell:
-            d["signal"] = "SELL"
-        else:
-            d["signal"] = "NEUTRAL"
+    net = bull - bear
+    d["net_score"] = net
+    th = STRATEGY.thresholds
+    if net >= th.buy:
+        d["signal"] = "BUY"
+    elif net <= th.sell:
+        d["signal"] = "SELL"
+    else:
+        d["signal"] = "NEUTRAL"
     return d
 
 

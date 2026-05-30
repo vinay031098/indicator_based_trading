@@ -18,7 +18,7 @@ import { initTheme } from './theme.js';
 import { openModal, bindModalDismiss } from './modal.js';
 import { initDisclaimer } from './disclaimer.js';
 import { renderEquityCurve } from './charts.js';
-import { esc } from './format.js';
+import { esc, deriveSignal, netScore, signalLabel } from './format.js';
 import { toast } from './toast.js';
 
 const $ = (id) => document.getElementById(id);
@@ -29,20 +29,10 @@ const CATEGORY_LABELS = {
     nifty500: 'NIFTY 500', all: 'All NSE',
 };
 
-/** Must match ``strategy.STRATEGY.thresholds`` (buy / sell). */
-const SIGNAL_THRESHOLDS = { buy: 3, sell: -3 };
-
+/** @deprecated use deriveSignal / netScore from format.js */
 function enrichStock(s) {
-    const bull = Number(s.score) || 0;
-    const bear = Number(s.bear_score) || 0;
-    if (s.net_score == null) s.net_score = bull - bear;
-    let sig = (s.signal || '').toUpperCase();
-    if (!sig) {
-        if (s.net_score >= SIGNAL_THRESHOLDS.buy) sig = 'BUY';
-        else if (s.net_score <= SIGNAL_THRESHOLDS.sell) sig = 'SELL';
-        else sig = 'NEUTRAL';
-        s.signal = sig;
-    }
+    s.net_score = netScore(s);
+    s.signal = deriveSignal(s.net_score);
     return s;
 }
 
@@ -342,8 +332,8 @@ async function runAnalysis() {
         const data = await api.analyze({ date, min_score: minScore, category }, controller.signal);
         setProgress(90);
         loadPayload(data);
-        const buys = state.allResults.filter((s) => (s.signal || '').toUpperCase() === 'BUY').length;
-        const sells = state.allResults.filter((s) => (s.signal || '').toUpperCase() === 'SELL').length;
+        const buys = state.allResults.filter((s) => deriveSignal(s) === 'BUY').length;
+        const sells = state.allResults.filter((s) => deriveSignal(s) === 'SELL').length;
         toast(`Analysis complete — ${buys} Buy, ${sells} Sell signals`, 'success');
     } catch (err) {
         hideSkeleton();
@@ -481,9 +471,9 @@ function loadPayload(data, { stored = false } = {}) {
 
 function updateStats(data) {
     $('statTotal').textContent = data.total_stocks ?? state.allResults.length;
-    const buys = state.allResults.filter((s) => (s.signal || '').toUpperCase() === 'BUY').length;
-    const sells = state.allResults.filter((s) => (s.signal || '').toUpperCase() === 'SELL').length;
-    const neutrals = state.allResults.filter((s) => (s.signal || '').toUpperCase() === 'NEUTRAL').length;
+    const buys = state.allResults.filter((s) => deriveSignal(s) === 'BUY').length;
+    const sells = state.allResults.filter((s) => deriveSignal(s) === 'SELL').length;
+    const neutrals = state.allResults.filter((s) => deriveSignal(s) === 'NEUTRAL').length;
     $('statSignalBuy').textContent = buys;
     $('statSignalSell').textContent = sells;
     $('statSignalNeutral').textContent = neutrals;
@@ -568,9 +558,9 @@ function computeRows() {
     switch (state.filter) {
         case 'all': break;
         case 'qualified': rows = rows.filter((s) => s.score >= minScore); break;
-        case 'signal-buy': rows = rows.filter((s) => (s.signal || '').toUpperCase() === 'BUY'); break;
-        case 'signal-sell': rows = rows.filter((s) => (s.signal || '').toUpperCase() === 'SELL'); break;
-        case 'signal-neutral': rows = rows.filter((s) => (s.signal || '').toUpperCase() === 'NEUTRAL'); break;
+        case 'signal-buy': rows = rows.filter((s) => deriveSignal(s) === 'BUY'); break;
+        case 'signal-sell': rows = rows.filter((s) => deriveSignal(s) === 'SELL'); break;
+        case 'signal-neutral': rows = rows.filter((s) => deriveSignal(s) === 'NEUTRAL'); break;
         case 'oversold': rows = rows.filter((s) => s.rsi < 35); break;
         case 'momentum': rows = rows.filter((s) => (s.dist_52w ?? 100) < 5); break;
         case 'golden': rows = rows.filter((s) => (s.reasons || []).some((r) => /golden cross/i.test(r.text || ''))); break;
@@ -587,7 +577,7 @@ function computeRows() {
     // Default ordering: signal filters by net score; otherwise bull score.
     const signalSort = ['signal-buy', 'signal-sell', 'signal-neutral'].includes(state.filter);
     return rows.slice().sort((a, b) => {
-        if (signalSort) return (Number(b.net_score) || 0) - (Number(a.net_score) || 0);
+        if (signalSort) return netScore(b) - netScore(a);
         return (Number(b.score) || 0) - (Number(a.score) || 0);
     });
 }

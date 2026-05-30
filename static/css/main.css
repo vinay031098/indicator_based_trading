@@ -462,17 +462,17 @@ input[type="date"]:focus, select:focus { border-color: var(--accent); }
     transition: border-color 0.2s, color 0.2s, background 0.2s;
 }
 .filter-tab:hover { border-color: var(--accent); color: var(--text); }
-.filter-tab.active {
+.filter-tab.active:not(.signal-buy):not(.signal-sell):not(.signal-neutral) {
     background: var(--accent);
     color: var(--accent-contrast);
     border-color: var(--accent);
 }
+.filter-tab.signal-buy.active { border-color: var(--green); color: var(--green); background: rgba(34, 197, 94, 0.15); font-weight: 600; }
+.filter-tab.signal-sell.active { border-color: var(--red); color: var(--red); background: rgba(239, 68, 68, 0.15); font-weight: 600; }
+.filter-tab.signal-neutral.active { border-color: var(--yellow); color: var(--yellow); background: rgba(234, 179, 8, 0.15); font-weight: 600; }
 .filter-tab.ai-buy[aria-pressed] { border-color: var(--green); color: var(--green); }
 .filter-tab.ai-sell { border-color: var(--red); color: var(--red); }
 .filter-tab.ai-neutral { border-color: var(--yellow); color: var(--yellow); }
-.filter-tab.signal-buy.active { border-color: var(--green); color: var(--green); background: rgba(34, 197, 94, 0.12); }
-.filter-tab.signal-sell.active { border-color: var(--red); color: var(--red); background: rgba(239, 68, 68, 0.12); }
-.filter-tab.signal-neutral.active { border-color: var(--yellow); color: var(--yellow); background: rgba(234, 179, 8, 0.12); }
 .signal-filter-divider {
     width: 1px; height: 24px; background: var(--border); margin: 0 4px; flex-shrink: 0;
 }

@@ -119,6 +119,15 @@
 .signal-pill .pill-shape { font-size: 9px; }
 
 .indicators { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+.indicators-full {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px 4px;
+    max-height: 132px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+.indicators-full .indicator-value { font-size: 12px; }
+.indicators-full .indicator-label { font-size: 9px; letter-spacing: 0.02em; }
 .indicator { text-align: center; padding: 7px 4px; background: var(--bg); border-radius: 8px; }
 .indicator-value { font-size: 14px; font-weight: 700; }
 .indicator-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; margin-top: 2px; }

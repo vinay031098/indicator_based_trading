@@ -5,7 +5,7 @@
 import { getHistory } from './api.js';
 import { notify } from './toast.js';
 import { openModal, closeModal, bindModalDismiss } from './modal.js';
-import { inr, num, signed, pct, aiActionLabel, signalLabel, esc } from './format.js';
+import { inr, num, signed, pct, aiActionLabel, signalLabel, esc, deriveSignal, netScore } from './format.js';
 import { createStockChart } from './charts.js';
 import { isStarred, toggleWatchlist } from './watchlist.js';
 
@@ -64,7 +64,8 @@ export async function openDetail(stock) {
 }
 
 function buildBody(s, ai) {
-    const sig = signalLabel(s.signal);
+    const sig = signalLabel(deriveSignal(s));
+    const net = netScore(s);
     const changeUp = Number(s.change) >= 0;
     const starred = isStarred(s.symbol);
 
@@ -99,7 +100,7 @@ function buildBody(s, ai) {
             <div class="detail-price">${esc(inr(s.price))}
                 <span class="change ${changeUp ? 'up' : 'down'}" style="font-size:14px">${esc(signed(s.change))} (${esc(pct(s.change_pct))})</span>
             </div>
-            <div class="detail-sub">NSE &middot; ${esc(s.symbol)} &middot; Score ${esc(num(s.score, 0))}/30
+            <div class="detail-sub">NSE &middot; ${esc(s.symbol)} &middot; Net ${esc(signed(net, 0))} &middot; Bull ${esc(num(s.score, 0))}/30
                 <span class="signal-pill ${sig.cls}" style="margin-left:8px"><span class="pill-shape" aria-hidden="true">${sig.shape}</span>${esc(sig.text)}</span>
             </div>
         </div>
