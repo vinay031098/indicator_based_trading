@@ -1,15 +1,13 @@
-"""WSGI entry point for Gunicorn (production)."""
-import os
-from dotenv import load_dotenv
+"""WSGI entry point for Gunicorn (production) and `python wsgi.py` (local)."""
 
-# Load .env file
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+from __future__ import annotations
 
-from app import app, auto_connect
-import threading
+from app import create_app
 
-# Auto-connect on startup
-threading.Timer(2, auto_connect).start()
+app = create_app()
+
 
 if __name__ == "__main__":
-    app.run()
+    from config import settings
+
+    app.run(host="0.0.0.0", port=5000, debug=not settings.production)

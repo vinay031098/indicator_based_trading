@@ -4,2055 +4,456 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NSE Trading Indicator Dashboard</title>
-    <style>
-        :root {
-            --bg: #0f1117;
-            --card: #1a1d29;
-            --card-hover: #22263a;
-            --border: #2a2e3f;
-            --text: #e1e4eb;
-            --text-muted: #8b8fa3;
-            --accent: #6c63ff;
-            --accent-hover: #5a52e0;
-            --green: #22c55e;
-            --green-bg: rgba(34, 197, 94, 0.12);
-            --red: #ef4444;
-            --red-bg: rgba(239, 68, 68, 0.12);
-            --yellow: #f59e0b;
-            --yellow-bg: rgba(245, 158, 11, 0.12);
-            --blue: #3b82f6;
-            --blue-bg: rgba(59, 130, 246, 0.12);
-        }
+    <meta name="description" content="Technical-indicator based NSE stock analysis dashboard.">
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+    <!-- Set theme before paint to avoid a flash of the wrong theme. -->
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('dash_theme');
+                if (t !== 'light' && t !== 'dark') {
+                    t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+                }
+                document.documentElement.setAttribute('data-theme', t);
+            } catch (e) { document.documentElement.setAttribute('data-theme', 'dark'); }
+        })();
+    </script>
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-        }
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-        /* ─── Login Screen ────────────────────────────────────── */
-        .login-overlay {
-            position: fixed;
-            inset: 0;
-            background: var(--bg);
-            z-index: 9999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .login-overlay.hidden { display: none; }
-        .login-box {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 40px 36px;
-            width: 380px;
-            max-width: 90vw;
-            text-align: center;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-        }
-        .login-box .login-icon { font-size: 48px; margin-bottom: 12px; }
-        .login-box h2 {
-            font-size: 22px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #6c63ff, #3b82f6);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 6px;
-        }
-        .login-box .login-sub {
-            color: var(--text-muted);
-            font-size: 13px;
-            margin-bottom: 24px;
-        }
-        .login-field {
-            width: 100%;
-            padding: 12px 14px;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            background: var(--bg);
-            color: var(--text);
-            font-size: 14px;
-            margin-bottom: 12px;
-            outline: none;
-            transition: border 0.2s;
-        }
-        .login-field:focus { border-color: var(--accent); }
-        .login-field::placeholder { color: var(--text-muted); }
-        .login-btn {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            background: linear-gradient(135deg, var(--accent), #3b82f6);
-            color: #fff;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            margin-top: 6px;
-            transition: opacity 0.2s;
-        }
-        .login-btn:hover { opacity: 0.9; }
-        .login-btn:active { transform: scale(0.98); }
-        .login-error {
-            color: var(--red);
-            font-size: 13px;
-            margin-top: 12px;
-            min-height: 18px;
-        }
-        .login-shake {
-            animation: shake 0.4s ease;
-        }
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            20%, 60% { transform: translateX(-8px); }
-            40%, 80% { transform: translateX(8px); }
-        }
+    <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="stylesheet" href="/static/css/components.css">
 
-        /* ─── Header ─────────────────────────────────────────── */
-        .header {
-            background: linear-gradient(135deg, #1a1d29 0%, #0f1117 100%);
-            border-bottom: 1px solid var(--border);
-            padding: 20px 32px;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            backdrop-filter: blur(12px);
-        }
-        .header-top {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 16px;
-        }
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .logo h1 {
-            font-size: 22px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #6c63ff, #3b82f6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .logo-icon {
-            font-size: 28px;
-        }
-        .auth-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-            padding: 6px 14px;
-            border-radius: 20px;
-            border: 1px solid var(--border);
-        }
-        .auth-status.ok { border-color: var(--green); color: var(--green); }
-        .auth-status.no { border-color: var(--red); color: var(--red); }
-        .status-dot { width: 8px; height: 8px; border-radius: 50%; }
-        .status-dot.ok { background: var(--green); box-shadow: 0 0 8px var(--green); }
-        .status-dot.no { background: var(--red); }
+    <!-- Charting library (CSP allows unpkg.com). Loaded synchronously so
+         createStockChart() can run without awaiting. -->
+    <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 
-        /* ─── Controls Bar ───────────────────────────────────── */
-        .controls {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            flex-wrap: wrap;
-        }
-        .control-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .control-group label {
-            font-size: 13px;
-            color: var(--text-muted);
-            font-weight: 500;
-        }
-        input[type="date"], select {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            color: var(--text);
-            padding: 8px 14px;
-            border-radius: 8px;
-            font-size: 14px;
-            outline: none;
-            transition: border 0.2s;
-        }
-        input[type="date"]:focus, select:focus {
-            border-color: var(--accent);
-        }
-        .btn {
-            padding: 9px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .btn-primary {
-            background: var(--accent);
-            color: white;
-        }
-        .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
-        .btn-primary:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-        .btn-outline {
-            background: transparent;
-            color: var(--accent);
-            border: 1px solid var(--accent);
-        }
-        .btn-outline:hover { background: rgba(108, 99, 255, 0.1); }
+    <!-- Small inline config from Flask/Jinja. -->
+    <script>
+        window.__APP_CONFIG__ = {
+            authenticated: {{ 'true' if authenticated else 'false' }},
+            production: {{ 'true' if production else 'false' }},
+            loggedIn: {{ 'true' if logged_in else 'false' }},
+            today: "{{ today }}"
+        };
+    </script>
 
-        /* ─── Auth Section ────────────────────────────────────── */
-        .auth-section {
-            max-width: 520px;
-            margin: 80px auto;
-            text-align: center;
-            padding: 40px;
-            background: var(--card);
-            border-radius: 16px;
-            border: 1px solid var(--border);
-        }
-        .auth-section h2 { margin-bottom: 8px; font-size: 24px; }
-        .auth-section p { color: var(--text-muted); margin-bottom: 24px; font-size: 14px; }
-        .auth-section .or-divider {
-            color: var(--text-muted);
-            font-size: 13px;
-            margin: 20px 0;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .auth-section .or-divider::before,
-        .auth-section .or-divider::after {
-            content: "";
-            flex: 1;
-            height: 1px;
-            background: var(--border);
-        }
-        .auth-input-group {
-            display: flex;
-            gap: 8px;
-        }
-        .auth-input-group input {
-            flex: 1;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            color: var(--text);
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 14px;
-            outline: none;
-        }
-        .auth-input-group input:focus { border-color: var(--accent); }
-
-        /* ─── Stats Bar ──────────────────────────────────────── */
-        .stats-bar {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 12px;
-            padding: 20px 32px;
-        }
-        .stat-card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 16px 20px;
-            text-align: center;
-        }
-        .stat-value {
-            font-size: 28px;
-            font-weight: 700;
-        }
-        .stat-label {
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-top: 4px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        /* ─── Filter Tabs ────────────────────────────────────── */
-        .filter-bar {
-            padding: 0 32px;
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-        .filter-tab {
-            padding: 6px 16px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            border: 1px solid var(--border);
-            background: transparent;
-            color: var(--text-muted);
-            transition: all 0.2s;
-        }
-        .filter-tab:hover { border-color: var(--accent); color: var(--text); }
-        .filter-tab.active {
-            background: var(--accent);
-            color: white;
-            border-color: var(--accent);
-        }
-        .search-box {
-            margin-left: auto;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            color: var(--text);
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 13px;
-            outline: none;
-            width: 200px;
-        }
-        .search-box:focus { border-color: var(--accent); }
-
-        /* ─── Stock Grid ─────────────────────────────────────── */
-        .stock-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-            gap: 16px;
-            padding: 16px 32px 40px;
-        }
-
-        .stock-card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 20px;
-            transition: all 0.25s;
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
-        }
-        .stock-card:hover {
-            background: var(--card-hover);
-            border-color: var(--accent);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-        }
-        .stock-card::before {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            border-radius: 14px 14px 0 0;
-        }
-        .stock-card.score-tier-top::before { background: linear-gradient(90deg, #22c55e, #16a34a); height: 4px; }
-        .stock-card.score-tier-high::before { background: var(--green); }
-        .stock-card.score-tier-good::before { background: var(--blue); }
-        .stock-card.score-tier-mid::before { background: var(--yellow); }
-        .stock-card.score-tier-low::before { background: var(--text-muted); }
-        .stock-card.score-tier-weak::before { background: var(--red); }
-        /* AI signal border glow */
-        .stock-card.ai-buy { border-color: rgba(34,197,94,0.4); box-shadow: 0 0 15px rgba(34,197,94,0.08); }
-        .stock-card.ai-sell { border-color: rgba(239,68,68,0.4); box-shadow: 0 0 15px rgba(239,68,68,0.08); }
-        .stock-card.ai-neutral { border-color: rgba(245,158,11,0.3); }
-
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 14px;
-        }
-        .stock-name {
-            font-size: 18px;
-            font-weight: 700;
-            letter-spacing: 0.3px;
-        }
-        .stock-exchange {
-            font-size: 11px;
-            color: var(--text-muted);
-        }
-        .score-badge {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 42px;
-            height: 42px;
-            border-radius: 12px;
-            font-size: 18px;
-            font-weight: 800;
-        }
-        .score-high { background: var(--green-bg); color: var(--green); }
-        .score-med { background: var(--blue-bg); color: var(--blue); }
-        .score-low { background: var(--yellow-bg); color: var(--yellow); }
-        .score-none { background: var(--red-bg); color: var(--red); }
-
-        .price-row {
-            display: flex;
-            align-items: baseline;
-            gap: 10px;
-            margin-bottom: 16px;
-        }
-        .price {
-            font-size: 22px;
-            font-weight: 700;
-        }
-        .change {
-            font-size: 13px;
-            font-weight: 600;
-            padding: 2px 8px;
-            border-radius: 6px;
-        }
-        .change.up { background: var(--green-bg); color: var(--green); }
-        .change.down { background: var(--red-bg); color: var(--red); }
-
-        /* Indicator pills */
-        .indicators {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin-bottom: 14px;
-        }
-        .indicator {
-            text-align: center;
-            padding: 8px 4px;
-            background: var(--bg);
-            border-radius: 8px;
-        }
-        .indicator-value {
-            font-size: 15px;
-            font-weight: 700;
-        }
-        .indicator-label {
-            font-size: 10px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            margin-top: 2px;
-        }
-
-        /* Reasons */
-        .reasons {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        .reason {
-            font-size: 12px;
-            padding: 6px 10px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .reason.bullish { background: var(--green-bg); color: var(--green); }
-        .reason.bearish { background: var(--red-bg); color: var(--red); }
-        .reason.info { background: var(--blue-bg); color: var(--blue); }
-
-        /* 52W bar */
-        .w52-bar {
-            margin: 12px 0 6px;
-            position: relative;
-            height: 6px;
-            background: var(--bg);
-            border-radius: 3px;
-            overflow: visible;
-        }
-        .w52-fill {
-            height: 100%;
-            border-radius: 3px;
-            background: linear-gradient(90deg, var(--red), var(--yellow), var(--green));
-        }
-        .w52-marker {
-            position: absolute;
-            top: -4px;
-            width: 14px;
-            height: 14px;
-            background: white;
-            border-radius: 50%;
-            border: 2px solid var(--accent);
-            transform: translateX(-50%);
-        }
-        .w52-labels {
-            display: flex;
-            justify-content: space-between;
-            font-size: 10px;
-            color: var(--text-muted);
-            margin-top: 6px;
-        }
-
-        /* ─── Loading ────────────────────────────────────────── */
-        .loading-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(15, 17, 23, 0.85);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            gap: 20px;
-        }
-        .loading-overlay.show { display: flex; }
-        .spinner {
-            width: 48px;
-            height: 48px;
-            border: 4px solid var(--border);
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .loading-text { font-size: 16px; color: var(--text-muted); }
-        .loading-progress {
-            width: 300px;
-            height: 4px;
-            background: var(--border);
-            border-radius: 2px;
-            overflow: hidden;
-        }
-        .loading-progress-bar {
-            height: 100%;
-            background: var(--accent);
-            border-radius: 2px;
-            animation: progress 8s ease-out forwards;
-        }
-        @keyframes progress {
-            0% { width: 0; }
-            50% { width: 60%; }
-            80% { width: 85%; }
-            100% { width: 95%; }
-        }
-
-        /* ─── Empty State ────────────────────────────────────── */
-        .empty-state {
-            text-align: center;
-            padding: 80px 32px;
-            color: var(--text-muted);
-        }
-        .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
-        .empty-state h3 { font-size: 20px; color: var(--text); margin-bottom: 8px; }
-
-        /* ─── Responsive ─────────────────────────────────────── */
-        @media (max-width: 768px) {
-            .header { padding: 16px; }
-            .stats-bar { padding: 12px 16px; }
-            .stock-grid { grid-template-columns: 1fr; padding: 12px 16px; }
-            .filter-bar { padding: 0 16px; flex-wrap: wrap; }
-            .search-box { margin-left: 0; width: 100%; }
-            .controls { flex-direction: column; align-items: stretch; }
-        }
-
-        /* Expand/collapse details */
-        .card-details {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
-        }
-        .stock-card.expanded .card-details {
-            max-height: 500px;
-        }
-        .expand-hint {
-            font-size: 11px;
-            color: var(--text-muted);
-            text-align: center;
-            margin-top: 8px;
-        }
-
-        /* ─── AI Recommendation Styles ───────────────────────── */
-        .ai-rec {
-            margin-top: 10px;
-            padding: 10px 14px;
-            border-radius: 10px;
-            font-size: 13px;
-            line-height: 1.5;
-        }
-        .ai-rec.BUY {
-            background: linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05));
-            border: 1px solid rgba(34,197,94,0.3);
-        }
-        .ai-rec.HOLD {
-            background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.05));
-            border: 1px solid rgba(245,158,11,0.3);
-        }
-        .ai-rec.AVOID {
-            background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05));
-            border: 1px solid rgba(239,68,68,0.3);
-        }
-        .ai-action {
-            font-weight: 700;
-            font-size: 15px;
-            display: inline-block;
-            padding: 2px 10px;
-            border-radius: 6px;
-            margin-right: 6px;
-        }
-        .ai-action.BUY { background: var(--green); color: #000; }
-        .ai-action.HOLD { background: var(--yellow); color: #000; }
-        .ai-action.AVOID { background: var(--red); color: #fff; }
-        .ai-confidence {
-            font-size: 11px;
-            padding: 2px 6px;
-            border-radius: 4px;
-            background: rgba(255,255,255,0.1);
-            color: var(--text-muted);
-        }
-        .ai-meta {
-            display: flex;
-            gap: 12px;
-            margin-top: 6px;
-            font-size: 12px;
-            color: var(--text-muted);
-        }
-        .ai-meta span { display: flex; align-items: center; gap: 4px; }
-
-        /* ─── Rules Modal ─────────────────────────────────────── */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.7);
-            z-index: 5000;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(4px);
-        }
-        .modal-overlay.show { display: flex; }
-        .modal-box {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            width: 680px;
-            max-width: 92vw;
-            max-height: 85vh;
-            overflow-y: auto;
-            padding: 0;
-            box-shadow: 0 24px 80px rgba(0,0,0,0.6);
-        }
-        .modal-header {
-            position: sticky;
-            top: 0;
-            background: var(--card);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 24px;
-            border-bottom: 1px solid var(--border);
-            z-index: 1;
-        }
-        .modal-header h2 {
-            font-size: 18px;
-            background: linear-gradient(135deg, #6c63ff, #3b82f6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .modal-close {
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            font-size: 24px;
-            cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 8px;
-            transition: all 0.2s;
-        }
-        .modal-close:hover { background: var(--bg); color: var(--text); }
-        .modal-body { padding: 20px 24px; }
-        .rule-item {
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            padding: 12px 0;
-            border-bottom: 1px solid var(--border);
-        }
-        .rule-item:last-child { border-bottom: none; }
-        .rule-num {
-            min-width: 28px;
-            height: 28px;
-            background: var(--accent);
-            color: #fff;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: 700;
-        }
-        .rule-content { flex: 1; }
-        .rule-name {
-            font-weight: 600;
-            font-size: 14px;
-            margin-bottom: 4px;
-        }
-        .rule-desc {
-            font-size: 12px;
-            color: var(--text-muted);
-            line-height: 1.5;
-        }
-        .rule-points {
-            min-width: 50px;
-            text-align: right;
-            font-size: 13px;
-            font-weight: 700;
-            color: var(--green);
-        }
-
-        /* ─── Chatbot Widget ──────────────────────────────────── */
-        .chat-fab {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #6c63ff, #3b82f6);
-            color: white;
-            border: none;
-            font-size: 26px;
-            cursor: pointer;
-            z-index: 4000;
-            box-shadow: 0 4px 20px rgba(108,99,255,0.4);
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .chat-fab:hover { transform: scale(1.1); box-shadow: 0 6px 28px rgba(108,99,255,0.5); }
-        .chat-fab.hidden { display: none; }
-        .chat-panel {
-            position: fixed;
-            bottom: 90px;
-            right: 24px;
-            width: 400px;
-            max-width: calc(100vw - 32px);
-            height: 520px;
-            max-height: calc(100vh - 120px);
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            z-index: 4001;
-            display: none;
-            flex-direction: column;
-            box-shadow: 0 16px 60px rgba(0,0,0,0.5);
-            overflow: hidden;
-        }
-        .chat-panel.open { display: flex; }
-        .chat-header {
-            padding: 14px 18px;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .chat-header h3 {
-            font-size: 15px;
-            background: linear-gradient(135deg, #6c63ff, #3b82f6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .chat-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-        .chat-msg {
-            max-width: 85%;
-            padding: 10px 14px;
-            border-radius: 12px;
-            font-size: 13px;
-            line-height: 1.5;
-            word-wrap: break-word;
-        }
-        .chat-msg.user {
-            background: var(--accent);
-            color: white;
-            align-self: flex-end;
-            border-bottom-right-radius: 4px;
-        }
-        .chat-msg.bot {
-            background: var(--bg);
-            color: var(--text);
-            align-self: flex-start;
-            border-bottom-left-radius: 4px;
-            border: 1px solid var(--border);
-        }
-        .chat-msg.bot .stock-tag {
-            display: inline-block;
-            background: var(--accent);
-            color: white;
-            padding: 1px 6px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 600;
-        }
-        .chat-typing {
-            align-self: flex-start;
-            padding: 10px 14px;
-            background: var(--bg);
-            border-radius: 12px;
-            border: 1px solid var(--border);
-            font-size: 13px;
-            color: var(--text-muted);
-            display: none;
-        }
-        .chat-typing.show { display: block; }
-        .typing-dots span {
-            display: inline-block;
-            width: 6px;
-            height: 6px;
-            background: var(--text-muted);
-            border-radius: 50%;
-            margin: 0 2px;
-            animation: typingBounce 1.4s infinite ease-in-out;
-        }
-        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes typingBounce {
-            0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-            40% { transform: scale(1); opacity: 1; }
-        }
-        .chat-input-area {
-            padding: 12px 14px;
-            border-top: 1px solid var(--border);
-            display: flex;
-            gap: 8px;
-        }
-        .chat-input {
-            flex: 1;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            color: var(--text);
-            padding: 10px 14px;
-            border-radius: 10px;
-            font-size: 13px;
-            outline: none;
-            resize: none;
-            min-height: 40px;
-            max-height: 80px;
-        }
-        .chat-input:focus { border-color: var(--accent); }
-        .chat-input::placeholder { color: var(--text-muted); }
-        .chat-send {
-            background: var(--accent);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            width: 40px;
-            cursor: pointer;
-            font-size: 16px;
-            transition: all 0.2s;
-        }
-        .chat-send:hover { background: var(--accent-hover); }
-        .chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
-
-        /* ─── Stored Date Picker ──────────────────────────────── */
-        .stored-dates-bar {
-            padding: 12px 32px;
-            background: linear-gradient(135deg, rgba(108,99,255,0.08), rgba(59,130,246,0.05));
-            border-bottom: 1px solid var(--border);
-            display: none;
-        }
-        .stored-dates-bar.show { display: block; }
-        .stored-dates-bar .bar-title {
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 10px;
-            color: var(--text);
-        }
-        .stored-dates-bar .bar-title span {
-            color: var(--text-muted);
-            font-weight: 400;
-            font-size: 12px;
-            margin-left: 8px;
-        }
-        .date-chips {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-        .date-chip {
-            padding: 8px 16px;
-            border-radius: 10px;
-            border: 1px solid var(--border);
-            background: var(--card);
-            color: var(--text);
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 2px;
-            min-width: 110px;
-        }
-        .date-chip:hover { border-color: var(--accent); transform: translateY(-1px); }
-        .date-chip.active {
-            border-color: var(--accent);
-            background: rgba(108,99,255,0.15);
-            color: var(--accent);
-            box-shadow: 0 2px 10px rgba(108,99,255,0.2);
-        }
-        .date-chip .chip-date { font-weight: 700; font-size: 14px; }
-        .date-chip .chip-meta { font-size: 10px; color: var(--text-muted); }
-        .date-chip .chip-ai {
-            font-size: 10px;
-            display: flex;
-            gap: 4px;
-        }
-        .mode-toggle {
-            display: inline-flex;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            overflow: hidden;
-            margin-left: 16px;
-        }
-        .mode-btn {
-            padding: 6px 16px;
-            font-size: 12px;
-            font-weight: 600;
-            border: none;
-            background: transparent;
-            color: var(--text-muted);
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .mode-btn.active {
-            background: var(--accent);
-            color: white;
-        }
-        .mode-btn:hover:not(.active) { background: rgba(108,99,255,0.1); }
-
-        /* ─── Run & Store Button ──────────────────────────────── */
-        .btn-run-store {
-            background: linear-gradient(135deg, #22c55e, #16a34a);
-            color: white;
-            border: none;
-            padding: 9px 20px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .btn-run-store:hover { opacity: 0.9; transform: translateY(-1px); }
-        .btn-run-store:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-    </style>
+    <script type="module" src="/static/js/app.js"></script>
 </head>
 <body>
-    <!-- Login Screen -->
-    <div class="login-overlay" id="loginOverlay">
+    <a href="#mainContent" class="skip-link">Skip to main content</a>
+
+    <!-- ─── Login Screen ─────────────────────────────────────── -->
+    <div class="login-overlay hidden" id="loginOverlay" role="dialog" aria-modal="true" aria-labelledby="loginHeading">
         <div class="login-box" id="loginBox">
-            <div class="login-icon">🔐</div>
-            <h2>Trading Dashboard</h2>
+            <div class="login-icon" aria-hidden="true">&#128274;</div>
+            <h2 id="loginHeading">Trading Dashboard</h2>
             <p class="login-sub">Enter your credentials to continue</p>
-            <form onsubmit="return handleLogin(event)">
-                <input type="text" class="login-field" id="loginUser" placeholder="Username" autocomplete="off" autofocus>
-                <input type="password" class="login-field" id="loginPass" placeholder="Password">
-                <button type="submit" class="login-btn" id="loginBtn">🔓 Login</button>
+            <form id="loginForm" autocomplete="on" novalidate>
+                <label class="sr-only" for="loginUser">Username</label>
+                <input type="text" class="login-field" id="loginUser" name="username" placeholder="Username" autocomplete="username" autofocus>
+                <label class="sr-only" for="loginPass">Password</label>
+                <input type="password" class="login-field" id="loginPass" name="password" placeholder="Password" autocomplete="current-password">
+                <button type="submit" class="login-btn" id="loginBtn">Login</button>
             </form>
-            <div class="login-error" id="loginError"></div>
+            <div class="login-error" id="loginError" role="alert" aria-live="assertive"></div>
         </div>
     </div>
 
-    <!-- Dashboard (hidden until login) -->
+    <!-- ─── Dashboard ────────────────────────────────────────── -->
     <div id="dashboardContainer" style="display:none;">
 
-    <!-- Loading Overlay -->
-    <div class="loading-overlay" id="loadingOverlay">
-        <div class="spinner"></div>
-        <div class="loading-text" id="loadingText">Fetching stocks from Fyers...</div>
-        <div class="loading-progress"><div class="loading-progress-bar"></div></div>
-    </div>
-
-    <!-- Header -->
-    <div class="header">
-        <div class="header-top">
-            <div class="logo">
-                <span class="logo-icon">📊</span>
-                <h1>NSE Indicator Dashboard</h1>
-            </div>
-            <div style="display:flex; align-items:center; gap:10px;">
-                <button onclick="document.getElementById('rulesModal').classList.add('show')" style="background:transparent; border:1px solid var(--border); color:var(--text); padding:6px 14px; border-radius:20px; cursor:pointer; font-size:13px; font-weight:500; transition:all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">📋 Indicator Rules</button>
-                <div class="auth-status {{ 'ok' if authenticated else 'no' }}" id="authStatus">
-                    <span class="status-dot {{ 'ok' if authenticated else 'no' }}" id="statusDot"></span>
-                    <span id="authLabel">{{ 'Connected' if authenticated else 'Not Connected' }}</span>
+        <!-- Header -->
+        <header class="header">
+            <div class="header-top">
+                <div class="logo">
+                    <span class="logo-icon" aria-hidden="true">&#128202;</span>
+                    <h1>NSE Indicator Dashboard</h1>
+                </div>
+                <div class="header-actions">
+                    <button class="icon-btn" id="themeToggle" type="button" aria-pressed="false" aria-label="Switch theme">
+                        <span class="theme-icon" aria-hidden="true">&#127769;</span><span class="theme-label">Dark</span>
+                    </button>
+                    <button class="icon-btn" id="watchlistBtn" type="button" aria-label="Open watchlist">
+                        <span aria-hidden="true">&#9733;</span> Watchlist (<span id="watchlistCount">0</span>)
+                    </button>
+                    <button class="icon-btn" id="rulesBtn" type="button" aria-label="View indicator scoring rules">
+                        <span aria-hidden="true">&#128203;</span> Rules
+                    </button>
+                    <button class="icon-btn" id="alertsBtn" type="button" aria-label="Manage alerts">
+                        <span aria-hidden="true">&#128276;</span> Alerts
+                    </button>
+                    <button class="icon-btn" id="backtestBtn" type="button" aria-label="Run a backtest">
+                        <span aria-hidden="true">&#9201;</span> Backtest
+                    </button>
+                    <button class="icon-btn" id="logoutBtn" type="button" aria-label="Log out">
+                        <span aria-hidden="true">&#8617;</span> Logout
+                    </button>
+                    <div class="auth-status no" id="authStatus" role="status">
+                        <span class="status-dot no" id="statusDot" aria-hidden="true"></span>
+                        <span id="authLabel">Fyers Not Connected</span>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="controls">
-            <div class="control-group">
-                <label>📅 Analysis Date</label>
-                <input type="date" id="analysisDate" value="{{ today }}">
-            </div>
-            <div class="control-group">
-                <label>🏛️ Stock Universe</label>
-                <select id="stockCategory" style="min-width: 200px;">
-                    <option value="nifty50">NIFTY 50 (~48 stocks)</option>
-                    <option value="nifty100">NIFTY 100 (~98 stocks)</option>
-                    <option value="nifty200">NIFTY 200 (~200 stocks)</option>
-                    <option value="nifty500">NIFTY 500 (~500 stocks)</option>
-                    <option value="all">📊 All NSE (~2100 stocks)</option>
-                </select>
-            </div>
-            <div class="control-group">
-                <label>🎯 Min Score</label>
-                <select id="minScore" style="min-width: 180px;">
-                    <option value="0">📋 All Stocks (0+)</option>
-                    <option value="2" selected>⚡ Moderate (2+)</option>
-                    <option value="5">🟢 Good Setup (5+)</option>
-                    <option value="8">🔥 Strong Signal (8+)</option>
-                    <option value="12">💎 Excellent (12+)</option>
-                    <option value="15">🏆 Top Picks (15+)</option>
-                    <option value="20">🚀 Rare Gem (20+)</option>
-                </select>
-            </div>
-            <button class="btn btn-primary" id="analyzeBtn" onclick="runAnalysis()">
-                🔍 Analyze
-            </button>
-            <button class="btn-run-store" id="runStoreBtn" onclick="runAndStore()" title="Analyze + AI + Save to database for future access">
-                💾 Run & Store
-            </button>
-        </div>
-    </div>
-
-    <!-- Stored Dates Bar -->
-    <div class="stored-dates-bar" id="storedDatesBar">
-        <div class="bar-title">
-            📅 Stored Analysis Dates <span>Click a date to load pre-analyzed data (no Fyers needed)</span>
-            <div class="mode-toggle" style="float:right;">
-                <button class="mode-btn active" id="modeStored" onclick="switchMode('stored')">📦 Stored</button>
-                <button class="mode-btn" id="modeLive" onclick="switchMode('live')">🔴 Live</button>
-            </div>
-        </div>
-        <div class="date-chips" id="dateChips">
-            <!-- Filled by JS -->
-        </div>
-    </div>
-
-    <!-- Stats Bar (hidden until results) -->
-    <div class="stats-bar" id="statsBar" style="display: none;">
-        <div class="stat-card">
-            <div class="stat-value" style="color: var(--accent)" id="statTotal">0</div>
-            <div class="stat-label">Total Analyzed</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value" style="color: var(--green)" id="statQualified">0</div>
-            <div class="stat-label">Qualified</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value" style="color: var(--green)" id="statBullish">0</div>
-            <div class="stat-label">Score 10+</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value" style="color: var(--blue)" id="statStrong">0</div>
-            <div class="stat-label">Score 5-9</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value" id="statDate">—</div>
-            <div class="stat-label">Analysis Date</div>
-        </div>
-        <div class="stat-card" id="statAiBuyCard" style="display:none;">
-            <div class="stat-value" style="color: var(--green)" id="statAiBuy">0</div>
-            <div class="stat-label">🟢 AI Buy</div>
-        </div>
-        <div class="stat-card" id="statAiSellCard" style="display:none;">
-            <div class="stat-value" style="color: var(--red)" id="statAiSell">0</div>
-            <div class="stat-label">🔴 AI Sell</div>
-        </div>
-        <div class="stat-card" id="statAiNeutralCard" style="display:none;">
-            <div class="stat-value" style="color: var(--yellow)" id="statAiNeutral">0</div>
-            <div class="stat-label">🟡 AI Neutral</div>
-        </div>
-    </div>
-
-    <!-- Filter Tabs (hidden until results) -->
-    <div class="filter-bar" id="filterBar" style="display: none;">
-        <button class="filter-tab active" data-filter="qualified" onclick="filterStocks('qualified', this)">✅ Qualified</button>
-        <button class="filter-tab" data-filter="all" onclick="filterStocks('all', this)">📋 All</button>
-        <button class="filter-tab" data-filter="oversold" onclick="filterStocks('oversold', this)">📉 Oversold</button>
-        <button class="filter-tab" data-filter="momentum" onclick="filterStocks('momentum', this)">🚀 Momentum</button>
-        <button class="filter-tab" data-filter="golden" onclick="filterStocks('golden', this)">⭐ Golden Cross</button>
-        <span class="ai-filter-divider" id="aiFilterDivider" style="display:none; width:1px; height:24px; background:var(--border); margin:0 4px;"></span>
-        <button class="filter-tab" data-filter="ai-buy" id="aiFilterBuy" style="display:none; border-color:var(--green); color:var(--green);" onclick="filterStocks('ai-buy', this)">🟢 AI Buy</button>
-        <button class="filter-tab" data-filter="ai-sell" id="aiFilterSell" style="display:none; border-color:var(--red); color:var(--red);" onclick="filterStocks('ai-sell', this)">🔴 AI Sell</button>
-        <button class="filter-tab" data-filter="ai-neutral" id="aiFilterNeutral" style="display:none; border-color:var(--yellow); color:var(--yellow);" onclick="filterStocks('ai-neutral', this)">🟡 AI Neutral</button>
-        <input type="text" class="search-box" id="searchBox" placeholder="🔍 Search stock..." oninput="searchStocks(this.value)">
-    </div>
-
-    <!-- AI Recommendation Bar (hidden until results) -->
-    <div id="aiBar" style="display: none; padding: 8px 32px; background: var(--card); border-bottom: 1px solid var(--border);">
-        <button id="aiBtn" onclick="getAiRecommendations()" style="background: linear-gradient(135deg, #6c63ff, #3b82f6); color: white; border: none; padding: 10px 24px; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 600;">
-            🤖 Get AI Buy / Sell / Neutral
-        </button>
-        <span id="aiStatus" style="margin-left: 12px; color: var(--text-muted); font-size: 13px;"></span>
-    </div>
-
-    <!-- Main Content -->
-    <div id="mainContent">
-        <div class="empty-state" id="emptyState">
-            <div class="icon">📊</div>
-            <h3 id="emptyStateTitle">Loading stored analysis...</h3>
-            <p id="emptyStateMsg">Click a date chip above to view stored data, or use Live mode with Fyers for real-time analysis</p>
-        </div>
-    </div>
-
-    <!-- Fyers Connect Panel (only for Live mode) -->
-    <div id="fyersConnectPanel" style="display:none;">
-        <div style="max-width: 520px; margin: 30px auto; padding: 30px; background: var(--card); border-radius: 16px; border: 1px solid var(--border); text-align: center;">
-            <div style="font-size: 32px; margin-bottom: 8px;">🔑</div>
-            <h3 style="margin-bottom: 6px; font-size: 16px;">Connect to Fyers for Live Analysis</h3>
-            <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">Required for real-time data. Stored data works without Fyers.</p>
-            <button class="btn btn-primary" id="fyersLoginBtn" onclick="openFyersLogin()" style="padding: 10px 28px; font-size: 14px; margin-bottom: 12px; cursor: pointer;">
-                🔐 Open Fyers Login
-            </button>
-            <div style="display: flex; gap: 8px;">
-                <input type="text" id="authUrlInput" placeholder="Paste the redirect URL here..." 
-                    style="flex:1; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 10px; font-size: 13px; outline: none;"
-                    oninput="autoConnect(this.value)">
-                <button class="btn btn-primary" id="connectBtn" onclick="connectNow()">Connect</button>
-            </div>
-            <div id="connectMsg" style="margin-top: 10px; font-size: 13px;"></div>
-        </div>
-    </div>
-
-    <!-- Stock Grid -->
-    <div class="stock-grid" id="stockGrid"></div>
-
-    <script>
-        // ─── State ──────────────────────────────────────────────
-        let allResults = [];
-        let currentFilter = 'qualified';
-        let currentMode = 'stored'; // 'stored' or 'live'
-        let storedDates = [];
-
-        // Set today as default date
-        const today = new Date().toISOString().split('T')[0];
-        document.getElementById('analysisDate').value = today;
-
-        // ─── Load stored dates on startup ────────────────────────
-        async function loadStoredDates(autoLoad = false) {
-            try {
-                const res = await fetch('/api/stored-dates');
-                const data = await res.json();
-                storedDates = data.dates || [];
-                renderDateChips();
-                if (storedDates.length > 0) {
-                    document.getElementById('storedDatesBar').classList.add('show');
-                    // Auto-load the most recent stored analysis on first load
-                    if (autoLoad) {
-                        const latest = storedDates[0];
-                        const firstChip = document.querySelector('.date-chip');
-                        loadStoredData(latest.run_date, latest.category, firstChip);
-                    }
-                }
-            } catch (e) {
-                console.log('No stored dates available');
-            }
-        }
-
-        function renderDateChips() {
-            const container = document.getElementById('dateChips');
-            if (storedDates.length === 0) {
-                container.innerHTML = '<span style="color:var(--text-muted); font-size:13px;">No stored analyses yet. Use "💾 Run & Store" to create one.</span>';
-                return;
-            }
-            container.innerHTML = storedDates.map(d => {
-                const dateObj = new Date(d.run_date + 'T00:00:00');
-                const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
-                const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                const aiInfo = d.ai_completed
-                    ? `<span class="chip-ai"><span style="color:var(--green)">🟢${d.ai_buy_count}</span> <span style="color:var(--yellow)">🟡${d.ai_hold_count}</span> <span style="color:var(--red)">🔴${d.ai_avoid_count}</span></span>`
-                    : '<span class="chip-ai" style="color:var(--text-muted)">No AI</span>';
-                return `
-                    <div class="date-chip" onclick="loadStoredData('${d.run_date}', '${d.category}', this)" data-date="${d.run_date}">
-                        <span class="chip-date">${dayName}, ${dateStr}</span>
-                        <span class="chip-meta">${d.total_stocks} stocks · ${d.category}</span>
-                        ${aiInfo}
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // ─── Mode Toggle (Stored vs Live) ────────────────────────
-        function switchMode(mode) {
-            currentMode = mode;
-            document.getElementById('modeStored').classList.toggle('active', mode === 'stored');
-            document.getElementById('modeLive').classList.toggle('active', mode === 'live');
-
-            // Show/hide relevant controls
-            const analyzeBtn = document.getElementById('analyzeBtn');
-            const runStoreBtn = document.getElementById('runStoreBtn');
-            const fyersPanel = document.getElementById('fyersConnectPanel');
-            const authOk = document.getElementById('statusDot').classList.contains('ok');
-
-            if (mode === 'live') {
-                analyzeBtn.style.display = 'flex';
-                runStoreBtn.style.display = 'none';
-                // Show Fyers connect if not authenticated and no data showing
-                if (!authOk && document.getElementById('stockGrid').children.length === 0) {
-                    fyersPanel.style.display = 'block';
-                    document.getElementById('mainContent').style.display = 'none';
-                } else {
-                    fyersPanel.style.display = 'none';
-                }
-            } else {
-                analyzeBtn.style.display = 'flex';
-                runStoreBtn.style.display = 'flex';
-                fyersPanel.style.display = 'none';
-            }
-        }
-
-        // ─── Load stored data for a date ─────────────────────────
-        async function loadStoredData(date, category, chipEl) {
-            // Highlight active chip
-            document.querySelectorAll('.date-chip').forEach(c => c.classList.remove('active'));
-            if (chipEl) chipEl.classList.add('active');
-
-            const overlay = document.getElementById('loadingOverlay');
-            document.getElementById('loadingText').innerHTML = `Loading stored analysis for ${date}...`;
-            overlay.classList.add('show');
-
-            try {
-                const minScore = parseInt(document.getElementById('minScore').value);
-                const res = await fetch('/api/stored-data', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ date, category, min_score: minScore })
-                });
-
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    alert(err.error || 'Failed to load stored data');
-                    overlay.classList.remove('show');
-                    return;
-                }
-
-                const data = await res.json();
-                allResults = [...(data.qualified || []), ...(data.unqualified || [])];
-                updateStats(data);
-                renderStocks(data.qualified || []);
-
-                // Show stats and filter bars
-                document.getElementById('statsBar').style.display = 'grid';
-                document.getElementById('filterBar').style.display = 'flex';
-                document.getElementById('mainContent').style.display = 'none';
-                document.getElementById('fyersConnectPanel').style.display = 'none';
-
-                // If AI recommendations are included, apply them
-                if (data.ai_recommendations) {
-                    aiRecommendations = data.ai_recommendations;
-                    const buyCount = Object.values(aiRecommendations).filter(r => r.action === 'BUY').length;
-                    const neutralCount = Object.values(aiRecommendations).filter(r => r.action === 'HOLD').length;
-                    const sellCount = Object.values(aiRecommendations).filter(r => r.action === 'AVOID').length;
-
-                    // Show AI stat cards
-                    document.getElementById('statAiBuy').textContent = buyCount;
-                    document.getElementById('statAiSell').textContent = sellCount;
-                    document.getElementById('statAiNeutral').textContent = neutralCount;
-                    document.getElementById('statAiBuyCard').style.display = 'block';
-                    document.getElementById('statAiSellCard').style.display = 'block';
-                    document.getElementById('statAiNeutralCard').style.display = 'block';
-
-                    // Show AI filter tabs
-                    document.getElementById('aiFilterDivider').style.display = 'block';
-                    document.getElementById('aiFilterBuy').style.display = 'inline-block';
-                    document.getElementById('aiFilterSell').style.display = 'inline-block';
-                    document.getElementById('aiFilterNeutral').style.display = 'inline-block';
-
-                    // Show AI bar with done status
-                    document.getElementById('aiBar').style.display = 'flex';
-                    document.getElementById('aiBtn').innerHTML = '🤖 AI Done ✓ (Stored)';
-                    document.getElementById('aiBtn').disabled = false;
-                    document.getElementById('aiStatus').innerHTML = `✅ Stored AI — <span style="color:var(--green)">${buyCount} BUY</span> · <span style="color:var(--yellow)">${neutralCount} NEUTRAL</span> · <span style="color:var(--red)">${sellCount} SELL</span>`;
-
-                    // Re-render to show AI badges
-                    filterStocks(currentFilter, document.querySelector(`.filter-tab[data-filter="${currentFilter}"]`));
-                } else {
-                    // Show AI bar so user can run AI on stored data
-                    document.getElementById('aiBar').style.display = 'flex';
-                    document.getElementById('aiBtn').innerHTML = '🤖 Get AI Buy / Sell / Neutral';
-                    document.getElementById('aiBtn').disabled = false;
-                    document.getElementById('aiStatus').innerHTML = '';
-                    // Hide AI stat cards
-                    document.getElementById('statAiBuyCard').style.display = 'none';
-                    document.getElementById('statAiSellCard').style.display = 'none';
-                    document.getElementById('statAiNeutralCard').style.display = 'none';
-                    document.getElementById('aiFilterDivider').style.display = 'none';
-                    document.getElementById('aiFilterBuy').style.display = 'none';
-                    document.getElementById('aiFilterSell').style.display = 'none';
-                    document.getElementById('aiFilterNeutral').style.display = 'none';
-                }
-
-            } catch (err) {
-                alert('Error loading stored data: ' + err.message);
-            } finally {
-                overlay.classList.remove('show');
-            }
-        }
-
-        // ─── Run & Store (analyze + AI + save to DB) ─────────────
-        async function runAndStore() {
-            const date = document.getElementById('analysisDate').value;
-            const minScore = document.getElementById('minScore').value;
-            const category = document.getElementById('stockCategory').value;
-            const btn = document.getElementById('runStoreBtn');
-
-            const countMap = { nifty50: '~48', nifty100: '~98', nifty200: '~200', nifty500: '~500', all: '~2100' };
-            const labelMap = { nifty50: 'NIFTY 50', nifty100: 'NIFTY 100', nifty200: 'NIFTY 200', nifty500: 'NIFTY 500', all: 'All NSE' };
-            const timeMap = { nifty50: '~2 min', nifty100: '~4 min', nifty200: '~8 min', nifty500: '~15 min', all: '~30 min' };
-
-            document.getElementById('loadingText').innerHTML = `
-                💾 Run & Store: Analyzing ${countMap[category] || ''} ${labelMap[category] || ''} stocks + AI...<br>
-                <span style="font-size:13px;color:var(--text-muted);">Estimated time: ${timeMap[category] || '~10 min'} (includes AI analysis)</span>
-            `;
-
-            const overlay = document.getElementById('loadingOverlay');
-            overlay.classList.add('show');
-            btn.disabled = true;
-            btn.innerHTML = '⏳ Running...';
-
-            try {
-                const timeoutMap = { nifty50: 300, nifty100: 600, nifty200: 900, nifty500: 1200, all: 2400 };
-                const timeoutSec = timeoutMap[category] || 900;
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), timeoutSec * 1000);
-
-                const res = await fetch('/api/run-daily', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ date, min_score: minScore, category, force: true }),
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-
-                if (res.status === 401) {
-                    alert('Fyers not connected. Please connect first.');
-                    overlay.classList.remove('show');
-                    btn.disabled = false;
-                    btn.innerHTML = '💾 Run & Store';
-                    return;
-                }
-
-                const data = await res.json();
-
-                if (data.error) {
-                    alert(data.error);
-                    overlay.classList.remove('show');
-                    btn.disabled = false;
-                    btn.innerHTML = '💾 Run & Store';
-                    return;
-                }
-
-                // Data is already stored, load it like stored data
-                allResults = [...(data.qualified || []), ...(data.unqualified || [])];
-                updateStats(data);
-                renderStocks(data.qualified || []);
-
-                document.getElementById('statsBar').style.display = 'grid';
-                document.getElementById('filterBar').style.display = 'flex';
-                document.getElementById('mainContent').style.display = 'none';
-
-                // Handle AI results
-                if (data.ai_recommendations) {
-                    aiRecommendations = data.ai_recommendations;
-                    const buyCount = Object.values(aiRecommendations).filter(r => r.action === 'BUY').length;
-                    const neutralCount = Object.values(aiRecommendations).filter(r => r.action === 'HOLD').length;
-                    const sellCount = Object.values(aiRecommendations).filter(r => r.action === 'AVOID').length;
-
-                    document.getElementById('statAiBuy').textContent = buyCount;
-                    document.getElementById('statAiSell').textContent = sellCount;
-                    document.getElementById('statAiNeutral').textContent = neutralCount;
-                    document.getElementById('statAiBuyCard').style.display = 'block';
-                    document.getElementById('statAiSellCard').style.display = 'block';
-                    document.getElementById('statAiNeutralCard').style.display = 'block';
-                    document.getElementById('aiFilterDivider').style.display = 'block';
-                    document.getElementById('aiFilterBuy').style.display = 'inline-block';
-                    document.getElementById('aiFilterSell').style.display = 'inline-block';
-                    document.getElementById('aiFilterNeutral').style.display = 'inline-block';
-                    document.getElementById('aiBar').style.display = 'flex';
-                    document.getElementById('aiBtn').innerHTML = '🤖 AI Done ✓';
-                    document.getElementById('aiStatus').innerHTML = `✅ AI + Stored — <span style="color:var(--green)">${buyCount} BUY</span> · <span style="color:var(--yellow)">${neutralCount} NEUTRAL</span> · <span style="color:var(--red)">${sellCount} SELL</span>`;
-                    filterStocks(currentFilter, document.querySelector(`.filter-tab[data-filter="${currentFilter}"]`));
-                } else {
-                    document.getElementById('aiBar').style.display = 'flex';
-                }
-
-                // Refresh stored dates list
-                await loadStoredDates();
-
-                alert(`✅ Analysis stored for ${date}! You can now load it anytime from the date bar.`);
-
-            } catch (err) {
-                if (err.name === 'AbortError') {
-                    alert('Request timed out. The server is still processing. Check back later.');
-                } else {
-                    alert('Error: ' + err.message);
-                }
-            } finally {
-                overlay.classList.remove('show');
-                btn.disabled = false;
-                btn.innerHTML = '💾 Run & Store';
-            }
-        }
-
-        // ─── Open Fyers Login in new tab ─────────────────
-        async function openFyersLogin() {
-            const btn = document.getElementById('fyersLoginBtn');
-            if (!btn) return;
-            btn.innerHTML = '⏳ Loading...';
-            btn.disabled = true;
-            try {
-                const res = await fetch('/auth/login');
-                const data = await res.json();
-                if (data.auth_url) {
-                    window.open(data.auth_url, '_blank');
-                    btn.innerHTML = '✅ Opened — Now paste URL below';
-                    document.getElementById('authUrlInput').focus();
-                }
-            } catch(e) {
-                btn.innerHTML = '🔐 Open Fyers Login';
-                btn.disabled = false;
-            }
-        }
-
-        // ─── Auto-connect when URL is pasted ─────────────────
-        let connecting = false;
-
-        async function autoConnect(value) {
-            // Auto-submit when a Fyers redirect URL is pasted
-            if (value.includes('auth_code=') && !connecting) {
-                connectNow();
-            }
-        }
-
-        async function connectNow() {
-            const input = document.getElementById('authUrlInput');
-            const msg = document.getElementById('connectMsg');
-            const btn = document.getElementById('connectBtn');
-            if (!input || !input.value.trim()) return;
-
-            connecting = true;
-            btn.disabled = true;
-            btn.innerHTML = '⏳ Connecting...';
-            msg.innerHTML = '<span style="color: var(--yellow)">🔄 Exchanging token...</span>';
-
-            try {
-                const res = await fetch('/auth/connect', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ auth_code: input.value.trim() })
-                });
-                const data = await res.json();
-
-                if (data.success) {
-                    msg.innerHTML = '<span style="color: var(--green)">✅ Connected!</span>';
-                    document.getElementById('authStatus').className = 'auth-status ok';
-                    document.getElementById('statusDot').className = 'status-dot ok';
-                    document.getElementById('authLabel').textContent = 'Connected';
-
-                    // Hide Fyers connect panel after success
-                    setTimeout(() => {
-                        document.getElementById('fyersConnectPanel').style.display = 'none';
-                    }, 500);
-                } else {
-                    msg.innerHTML = '<span style="color: var(--red)">❌ Failed. Try again or re-login.</span>';
-                    btn.disabled = false;
-                    btn.innerHTML = 'Connect';
-                }
-            } catch (e) {
-                msg.innerHTML = '<span style="color: var(--red)">❌ Error: ' + e.message + '</span>';
-                btn.disabled = false;
-                btn.innerHTML = 'Connect';
-            }
-            connecting = false;
-        }
-
-        // ─── Analysis ───────────────────────────────────────────
-        async function runAnalysis() {
-            const date = document.getElementById('analysisDate').value;
-            const minScore = document.getElementById('minScore').value;
-            const category = document.getElementById('stockCategory').value;
-            const btn = document.getElementById('analyzeBtn');
-
-            // Estimate count for loading text
-            const countMap = { nifty50: '~48', nifty100: '~98', nifty200: '~200', nifty500: '~500', all: '~2100' };
-            const labelMap = { nifty50: 'NIFTY 50', nifty100: 'NIFTY 100', nifty200: 'NIFTY 200', nifty500: 'NIFTY 500', all: 'All NSE' };
-            const timeMap = { nifty50: '~15 sec', nifty100: '~30 sec', nifty200: '~1.5 min', nifty500: '~4 min', all: '~12 min' };
-            document.getElementById('loadingText').innerHTML = `Fetching ${countMap[category] || ''} ${labelMap[category] || ''} stocks from Fyers...<br><span style="font-size:13px;color:var(--text-muted);">Estimated time: ${timeMap[category] || ''}</span>`;
-
-            // Show loading
-            const overlay = document.getElementById('loadingOverlay');
-            overlay.classList.add('show');
-            btn.disabled = true;
-            btn.innerHTML = '⏳ Analyzing...';
-
-            try {
-                // Timeout: scale with stock count
-                const timeoutMap = { nifty50: 120, nifty100: 180, nifty200: 300, nifty500: 600, all: 900 };
-                const timeoutSec = timeoutMap[category] || 300;
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), timeoutSec * 1000);
-
-                const res = await fetch('/api/analyze', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ date, min_score: minScore, category }),
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-
-                if (res.status === 401) {
-                    // Token expired — show Fyers connect panel
-                    overlay.classList.remove('show');
-                    btn.disabled = false;
-                    btn.innerHTML = '🔍 Analyze';
-                    document.getElementById('authStatus').className = 'auth-status no';
-                    document.getElementById('statusDot').className = 'status-dot no';
-                    document.getElementById('authLabel').textContent = 'Expired';
-                    document.getElementById('fyersConnectPanel').style.display = 'block';
-                    alert('Fyers token expired. Please re-connect to Fyers for live analysis. Stored data still works!');
-                    return;
-                }
-
-                if (!res.ok) {
-                    const errData = await res.json().catch(() => ({}));
-                    alert(errData.error || `Server error (${res.status}). Please try again.`);
-                    overlay.classList.remove('show');
-                    btn.disabled = false;
-                    btn.innerHTML = '🔍 Analyze';
-                    return;
-                }
-
-                const data = await res.json();
-                if (data.error) {
-                    alert(data.error);
-                    return;
-                }
-
-                allResults = [...data.qualified, ...data.unqualified];
-                updateStats(data);
-                renderStocks(data.qualified);
-
-                // Show stats and filter bars
-                document.getElementById('statsBar').style.display = 'grid';
-                document.getElementById('filterBar').style.display = 'flex';
-                document.getElementById('aiBar').style.display = 'flex';
-
-                // Hide empty state / auth section
-                const mainContent = document.getElementById('mainContent');
-                mainContent.style.display = 'none';
-
-            } catch (err) {
-                if (err.name === 'AbortError') {
-                    alert('Request timed out. The server is still processing — try a smaller stock universe or wait and retry.');
-                } else {
-                    alert('Error: ' + err.message + '\n\nTip: If Fyers token expired, reconnect via the auth section.');
-                }
-            } finally {
-                overlay.classList.remove('show');
-                btn.disabled = false;
-                btn.innerHTML = '🔍 Analyze';
-            }
-        }
-
-        // ─── Update Stats ────────────────────────────────────────
-        function updateStats(data) {
-            document.getElementById('statTotal').textContent = data.total_stocks;
-            document.getElementById('statQualified').textContent = data.qualified_count;
-            document.getElementById('statBullish').textContent = allResults.filter(s => s.score >= 10).length;
-            document.getElementById('statStrong').textContent = allResults.filter(s => s.score >= 5 && s.score < 10).length;
-            document.getElementById('statDate').textContent = `${data.date} · ${data.category_label || 'NIFTY 50'}`;
-            document.getElementById('statDate').style.fontSize = '13px';
-        }
-
-        // ─── Render Stock Cards ──────────────────────────────────
-        const STOCKS_PER_PAGE = 50;
-        let currentDisplayCount = STOCKS_PER_PAGE;
-        let currentStockList = [];
-
-        function renderStocks(stocks) {
-            currentStockList = stocks;
-            currentDisplayCount = STOCKS_PER_PAGE;
-            _renderPage();
-        }
-
-        function _renderPage() {
-            const stocks = currentStockList;
-            const grid = document.getElementById('stockGrid');
-            if (stocks.length === 0) {
-                grid.innerHTML = `
-                    <div class="empty-state" style="grid-column: 1/-1;">
-                        <div class="icon">🔍</div>
-                        <h3>No stocks match this filter</h3>
-                        <p>Try adjusting the minimum score or filter</p>
-                    </div>
-                `;
-                // Remove load more if exists
-                const existingBtn = document.getElementById('loadMoreBtn');
-                if (existingBtn) existingBtn.remove();
-                return;
-            }
-
-            const visibleStocks = stocks.slice(0, currentDisplayCount);
-
-            grid.innerHTML = visibleStocks.map(s => {
-                const scoreTier = s.score >= 15 ? 'score-tier-top' : s.score >= 10 ? 'score-tier-high' : s.score >= 7 ? 'score-tier-good' : s.score >= 4 ? 'score-tier-mid' : s.score >= 2 ? 'score-tier-low' : 'score-tier-weak';
-                const scoreClass = s.score >= 12 ? 'score-high' : s.score >= 7 ? 'score-med' : s.score >= 4 ? 'score-low' : 'score-none';
-                const changeClass = s.change >= 0 ? 'up' : 'down';
-                const changeSign = s.change >= 0 ? '+' : '';
-
-                // 52W position (0% = at low, 100% = at high)
-                const w52Range = s.w52_high - s.w52_low;
-                const w52Pos = w52Range > 0 ? ((s.price - s.w52_low) / w52Range * 100) : 50;
-
-                // RSI color
-                const rsiColor = s.rsi < 30 ? 'var(--green)' : s.rsi > 70 ? 'var(--red)' : 'var(--text)';
-
-                // AI recommendation for this stock
-                const aiRec = aiRecommendations[s.name];
-                const aiSignal = aiRec ? (aiRec.action === 'BUY' ? 'ai-buy' : aiRec.action === 'AVOID' ? 'ai-sell' : 'ai-neutral') : '';
-                let aiBadgeHtml = '';
-                if (aiRec) {
-                    const label = aiRec.action === 'BUY' ? '🟢 BUY' : aiRec.action === 'AVOID' ? '🔴 SELL' : '🟡 NEUTRAL';
-                    const bgColor = aiRec.action === 'BUY' ? 'var(--green-bg)' : aiRec.action === 'AVOID' ? 'var(--red-bg)' : 'var(--yellow-bg)';
-                    const fgColor = aiRec.action === 'BUY' ? 'var(--green)' : aiRec.action === 'AVOID' ? 'var(--red)' : 'var(--yellow)';
-                    let targetHtml = '';
-                    if (aiRec.action === 'BUY' && aiRec.target) {
-                        targetHtml = `<span style="font-size:11px; color:var(--text-muted); margin-left:8px;">🎯 ₹${Number(aiRec.target).toLocaleString('en-IN')} · SL ₹${Number(aiRec.stoploss).toLocaleString('en-IN')}</span>`;
-                    }
-                    aiBadgeHtml = `
-                    <div style="background:${bgColor}; border:1px solid ${fgColor}30; border-radius:10px; padding:8px 12px; margin-bottom:12px;">
-                        <span style="font-weight:700; font-size:14px; color:${fgColor};">${label}</span>
-                        <span style="font-size:11px; color:var(--text-muted); margin-left:6px;">${aiRec.confidence}</span>
-                        ${targetHtml}
-                        <div style="font-size:11px; color:var(--text); margin-top:4px; line-height:1.4;">${aiRec.reason}</div>
-                    </div>`;
-                }
-
-                return `
-                <div class="stock-card ${scoreTier} ${aiSignal}" onclick="this.classList.toggle('expanded')">
-                    ${aiBadgeHtml}
-                    <div class="card-header">
-                        <div>
-                            <div class="stock-name">${s.name}</div>
-                            <div class="stock-exchange">NSE · Score ${s.score}/30</div>
-                        </div>
-                        <div class="score-badge ${scoreClass}">${s.score}</div>
-                    </div>
-
-                    <div class="price-row">
-                        <span class="price">₹${s.price.toLocaleString('en-IN')}</span>
-                        <span class="change ${changeClass}">${changeSign}${s.change} (${changeSign}${s.change_pct}%)</span>
-                    </div>
-
-                    <div class="indicators">
-                        <div class="indicator">
-                            <div class="indicator-value" style="color: ${rsiColor}">${s.rsi}</div>
-                            <div class="indicator-label">RSI</div>
-                        </div>
-                        <div class="indicator">
-                            <div class="indicator-value" style="color: ${s.macd_hist >= 0 ? 'var(--green)' : 'var(--red)'}">${s.macd_hist > 0 ? '+' : ''}${s.macd_hist}</div>
-                            <div class="indicator-label">MACD</div>
-                        </div>
-                        <div class="indicator">
-                            <div class="indicator-value">${s.stoch_k}</div>
-                            <div class="indicator-label">Stoch %K</div>
-                        </div>
-                    </div>
-
-                    <div class="reasons">
-                        ${s.reasons.map(r => `<div class="reason ${r.type}">${r.icon} ${r.text}</div>`).join('')}
-                    </div>
-
-                    <div class="card-details">
-                        <!-- 52W Bar -->
-                        <div class="w52-bar">
-                            <div class="w52-fill" style="width: 100%"></div>
-                            <div class="w52-marker" style="left: ${w52Pos}%"></div>
-                        </div>
-                        <div class="w52-labels">
-                            <span>52W Low: ₹${s.w52_low.toLocaleString('en-IN')}</span>
-                            <span>52W High: ₹${s.w52_high.toLocaleString('en-IN')}</span>
-                        </div>
-
-                        <div class="indicators" style="margin-top: 12px;">
-                            <div class="indicator">
-                                <div class="indicator-value">${s.sma20}</div>
-                                <div class="indicator-label">SMA 20</div>
-                            </div>
-                            <div class="indicator">
-                                <div class="indicator-value">${s.sma50}</div>
-                                <div class="indicator-label">SMA 50</div>
-                            </div>
-                            <div class="indicator">
-                                <div class="indicator-value">${s.sma200}</div>
-                                <div class="indicator-label">SMA 200</div>
-                            </div>
-                            <div class="indicator">
-                                <div class="indicator-value">${s.bb_upper}</div>
-                                <div class="indicator-label">BB Upper</div>
-                            </div>
-                            <div class="indicator">
-                                <div class="indicator-value">${s.bb_lower}</div>
-                                <div class="indicator-label">BB Lower</div>
-                            </div>
-                            <div class="indicator">
-                                <div class="indicator-value">${s.vol_ratio}x</div>
-                                <div class="indicator-label">Vol Ratio</div>
-                            </div>
-                        </div>
-                        <div class="indicators" style="margin-top: 8px;">
-                            <div class="indicator">
-                                <div class="indicator-value">${s.adx ?? '-'}</div>
-                                <div class="indicator-label">ADX</div>
-                            </div>
-                            <div class="indicator">
-                                <div class="indicator-value">${s.cci ?? '-'}</div>
-                                <div class="indicator-label">CCI</div>
-                            </div>
-                            <div class="indicator">
-                                <div class="indicator-value">${s.mfi ?? '-'}</div>
-                                <div class="indicator-label">MFI</div>
-                            </div>
-                            <div class="indicator">
-                                <div class="indicator-value">${s.williams_r ?? '-'}</div>
-                                <div class="indicator-label">Will %R</div>
-                            </div>
-                            <div class="indicator">
-                                <div class="indicator-value">${s.roc ?? '-'}%</div>
-                                <div class="indicator-label">ROC</div>
-                            </div>
-                            <div class="indicator">
-                                <div class="indicator-value">${s.atr ?? '-'}</div>
-                                <div class="indicator-label">ATR</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="expand-hint">▼ click for details</div>
+            <div class="controls">
+                <div class="control-group">
+                    <label for="analysisDate">Analysis Date</label>
+                    <input type="date" id="analysisDate" value="{{ today }}">
                 </div>
-                `;
-            }).join('');
-
-            // Add/remove "Load More" button
-            let loadMoreBtn = document.getElementById('loadMoreBtn');
-            if (currentDisplayCount < stocks.length) {
-                const remaining = stocks.length - currentDisplayCount;
-                if (!loadMoreBtn) {
-                    loadMoreBtn = document.createElement('div');
-                    loadMoreBtn.id = 'loadMoreBtn';
-                    loadMoreBtn.style.cssText = 'text-align:center; padding:20px; grid-column:1/-1;';
-                    grid.parentNode.insertBefore(loadMoreBtn, grid.nextSibling);
-                }
-                loadMoreBtn.innerHTML = `<button onclick="loadMoreStocks()" class="btn btn-primary" style="min-width:200px;">📋 Load More (${remaining} remaining)</button>
-                    <div style="color:var(--text-muted); font-size:12px; margin-top:6px;">Showing ${currentDisplayCount} of ${stocks.length}</div>`;
-            } else if (loadMoreBtn) {
-                loadMoreBtn.remove();
-            }
-        }
-
-        function loadMoreStocks() {
-            currentDisplayCount += STOCKS_PER_PAGE;
-            _renderPage();
-            // Scroll to the new stocks area
-        }
-
-        // ─── AI Recommendations ──────────────────────────────────
-        let aiRecommendations = {};
-
-        async function getAiRecommendations() {
-            const btn = document.getElementById('aiBtn');
-            const status = document.getElementById('aiStatus');
-
-            if (allResults.length === 0) {
-                alert('Run analysis first!');
-                return;
-            }
-
-            btn.disabled = true;
-            btn.innerHTML = '🤖 Analyzing with AI...';
-            status.innerHTML = '⏳ Sending stocks to AI — this takes ~20 seconds...';
-
-            try {
-                const res = await fetch('/api/llm-analyze', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ stocks: allResults })
-                });
-
-                const data = await res.json();
-
-                if (data.error) {
-                    status.innerHTML = `❌ ${data.error}`;
-                    btn.disabled = false;
-                    btn.innerHTML = '🤖 Retry AI Analysis';
-                    return;
-                }
-
-                aiRecommendations = data.recommendations || {};
-                const buyCount = Object.values(aiRecommendations).filter(r => r.action === 'BUY').length;
-                const neutralCount = Object.values(aiRecommendations).filter(r => r.action === 'HOLD').length;
-                const sellCount = Object.values(aiRecommendations).filter(r => r.action === 'AVOID').length;
-
-                status.innerHTML = `✅ AI Done — <span style="color:var(--green)">${buyCount} BUY</span> · <span style="color:var(--yellow)">${neutralCount} NEUTRAL</span> · <span style="color:var(--red)">${sellCount} SELL</span>`;
-                btn.innerHTML = '🤖 AI Done ✓';
-
-                // Show AI stat cards
-                document.getElementById('statAiBuy').textContent = buyCount;
-                document.getElementById('statAiSell').textContent = sellCount;
-                document.getElementById('statAiNeutral').textContent = neutralCount;
-                document.getElementById('statAiBuyCard').style.display = 'block';
-                document.getElementById('statAiSellCard').style.display = 'block';
-                document.getElementById('statAiNeutralCard').style.display = 'block';
-
-                // Show AI filter tabs
-                document.getElementById('aiFilterDivider').style.display = 'block';
-                document.getElementById('aiFilterBuy').style.display = 'inline-block';
-                document.getElementById('aiFilterSell').style.display = 'inline-block';
-                document.getElementById('aiFilterNeutral').style.display = 'inline-block';
-
-                // Re-render current view to show AI badges on cards
-                filterStocks(currentFilter, document.querySelector(`.filter-tab[data-filter="${currentFilter}"]`));
-
-            } catch (err) {
-                status.innerHTML = `❌ Error: ${err.message}`;
-                btn.disabled = false;
-                btn.innerHTML = '🤖 Retry AI Analysis';
-            }
-        }
-
-        // ─── Filters ────────────────────────────────────────────
-        function filterStocks(filter, el) {
-            currentFilter = filter;
-            document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-            el.classList.add('active');
-
-            let filtered;
-            const minScore = parseInt(document.getElementById('minScore').value);
-
-            switch (filter) {
-                case 'all':
-                    filtered = allResults;
-                    break;
-                case 'qualified':
-                    filtered = allResults.filter(s => s.score >= minScore);
-                    break;
-                case 'oversold':
-                    filtered = allResults.filter(s => s.rsi < 35);
-                    break;
-                case 'momentum':
-                    filtered = allResults.filter(s => s.dist_52w < 5);
-                    break;
-                case 'golden':
-                    filtered = allResults.filter(s =>
-                        s.reasons.some(r => r.text.includes('Golden Cross'))
-                    );
-                    break;
-                case 'ai-buy':
-                    filtered = allResults.filter(s => aiRecommendations[s.name]?.action === 'BUY');
-                    break;
-                case 'ai-sell':
-                    filtered = allResults.filter(s => aiRecommendations[s.name]?.action === 'AVOID');
-                    break;
-                case 'ai-neutral':
-                    filtered = allResults.filter(s => aiRecommendations[s.name]?.action === 'HOLD');
-                    break;
-                default:
-                    filtered = allResults;
-            }
-
-            renderStocks(filtered);
-        }
-
-        function searchStocks(query) {
-            if (!query) {
-                filterStocks(currentFilter, document.querySelector(`.filter-tab[data-filter="${currentFilter}"]`));
-                return;
-            }
-            const q = query.toLowerCase();
-            const filtered = allResults.filter(s =>
-                s.name.toLowerCase().includes(q) || s.symbol.toLowerCase().includes(q)
-            );
-            renderStocks(filtered);
-        }
-
-    </script>
-
-    <!-- Rules Modal -->
-    <div class="modal-overlay" id="rulesModal" onclick="if(event.target===this) this.classList.remove('show')">
-        <div class="modal-box">
-            <div class="modal-header">
-                <h2>📋 25 Indicator Scoring Rules (Max 30 pts)</h2>
-                <button class="modal-close" onclick="document.getElementById('rulesModal').classList.remove('show')">&times;</button>
+                <div class="control-group">
+                    <label for="stockCategory">Stock Universe</label>
+                    <select id="stockCategory" style="min-width: 200px;">
+                        <option value="nifty50">NIFTY 50 (~48 stocks)</option>
+                        <option value="nifty100">NIFTY 100 (~98 stocks)</option>
+                        <option value="nifty200">NIFTY 200 (~200 stocks)</option>
+                        <option value="nifty500">NIFTY 500 (~500 stocks)</option>
+                        <option value="all">All NSE (~2100 stocks)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="minScore">Min Score</label>
+                    <select id="minScore" style="min-width: 170px;">
+                        <option value="0">All Stocks (0+)</option>
+                        <option value="2" selected>Moderate (2+)</option>
+                        <option value="5">Good Setup (5+)</option>
+                        <option value="8">Strong Signal (8+)</option>
+                        <option value="12">Excellent (12+)</option>
+                        <option value="15">Top Picks (15+)</option>
+                        <option value="20">Rare Gem (20+)</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" id="analyzeBtn" type="button">Analyze</button>
+                <button class="btn btn-success" id="runStoreBtn" type="button"
+                    title="Analyze + AI + save to database for future access">Run &amp; Store</button>
             </div>
-            <div class="modal-body">
-                <div class="rule-item"><div class="rule-num">1</div><div class="rule-content"><div class="rule-name">📉 RSI (Relative Strength Index)</div><div class="rule-desc">RSI &lt; 30 → Oversold (strong buy zone)<br>RSI 30–40 → Low RSI (mild buy)<br>RSI &gt; 70 → Overbought (caution)</div></div><div class="rule-points">+2 / +1</div></div>
-                <div class="rule-item"><div class="rule-num">2</div><div class="rule-content"><div class="rule-name">✅ MACD Crossover</div><div class="rule-desc">MACD line crosses above Signal line → Bullish momentum starting</div></div><div class="rule-points">+1</div></div>
-                <div class="rule-item"><div class="rule-num">3</div><div class="rule-content"><div class="rule-name">📈 MACD Histogram Rising</div><div class="rule-desc">Histogram is positive AND rising → Accelerating bullish momentum</div></div><div class="rule-points">+1</div></div>
-                <div class="rule-item"><div class="rule-num">4</div><div class="rule-content"><div class="rule-name">⬇️ Below 20-SMA (Dip Buy)</div><div class="rule-desc">Price below 20-day SMA → Potential mean-reversion buy</div></div><div class="rule-points">+1</div></div>
-                <div class="rule-item"><div class="rule-num">5</div><div class="rule-content"><div class="rule-name">🔻 Stochastic Oversold</div><div class="rule-desc">%K &lt; 20 → Oversold territory<br>%K &lt; 20 AND %K &gt; %D → Bullish cross in oversold</div></div><div class="rule-points">+1 / +2</div></div>
-                <div class="rule-item"><div class="rule-num">6</div><div class="rule-content"><div class="rule-name">🚀 Near 52-Week High</div><div class="rule-desc">&lt; 5% from 52W high → Strong momentum<br>&lt; 10% → Close to high</div></div><div class="rule-points">+2 / +1</div></div>
-                <div class="rule-item"><div class="rule-num">7</div><div class="rule-content"><div class="rule-name">⭐ Golden Cross</div><div class="rule-desc">Price &gt; SMA20 &gt; SMA50 &gt; SMA200 → Perfect MA alignment (very bullish)</div></div><div class="rule-points">+2</div></div>
-                <div class="rule-item"><div class="rule-num">8</div><div class="rule-content"><div class="rule-name">💎 Below Bollinger Lower Band</div><div class="rule-desc">Price below lower BB → Statistically oversold, likely to revert</div></div><div class="rule-points">+1</div></div>
-                <div class="rule-item"><div class="rule-num">9</div><div class="rule-content"><div class="rule-name">🔀 EMA 9/21 Cross</div><div class="rule-desc">EMA9 crosses above EMA21 → Short-term bullish signal<br>EMA9 &gt; EMA21 → Already bullish</div></div><div class="rule-points">+2 / +1</div></div>
-                <div class="rule-item"><div class="rule-num">10</div><div class="rule-content"><div class="rule-name">💪 ADX Trend + DI+</div><div class="rule-desc">ADX &gt; 25 with DI+ &gt; DI- → Strong uptrend<br>ADX 20–25 with DI+ &gt; DI- → Moderate uptrend</div></div><div class="rule-points">+2 / +1</div></div>
-                <div class="rule-item"><div class="rule-num">11</div><div class="rule-content"><div class="rule-name">🎯 CCI (Commodity Channel Index)</div><div class="rule-desc">CCI &lt; -100 → Oversold, potential reversal<br>CCI &gt; 100 → Overbought zone</div></div><div class="rule-points">+1</div></div>
-                <div class="rule-item"><div class="rule-num">12</div><div class="rule-content"><div class="rule-name">🏷️ Williams %R</div><div class="rule-desc">%R &lt; -80 → Oversold territory (buy signal)</div></div><div class="rule-points">+1</div></div>
-                <div class="rule-item"><div class="rule-num">13</div><div class="rule-content"><div class="rule-name">💰 MFI (Money Flow Index)</div><div class="rule-desc">MFI &lt; 20 → Strong money inflow (oversold)<br>MFI 20–40 → Moderate buy<br>MFI &gt; 80 → Overbought</div></div><div class="rule-points">+2 / +1</div></div>
-                <div class="rule-item"><div class="rule-num">14</div><div class="rule-content"><div class="rule-name">📊 OBV (On-Balance Volume)</div><div class="rule-desc">OBV rising + Price up → Volume confirms the uptrend</div></div><div class="rule-points">+1</div></div>
-                <div class="rule-item"><div class="rule-num">15</div><div class="rule-content"><div class="rule-name">🎪 Below VWAP</div><div class="rule-desc">Price below VWAP → Trading below average price (undervalued intraday)</div></div><div class="rule-points">+1</div></div>
-                <div class="rule-item"><div class="rule-num">16</div><div class="rule-content"><div class="rule-name">⚡ ROC (Rate of Change)</div><div class="rule-desc">ROC &gt; 5% → Strong positive momentum<br>ROC &lt; -10% → Weak momentum</div></div><div class="rule-points">+1</div></div>
-                <div class="rule-item"><div class="rule-num">17</div><div class="rule-content"><div class="rule-name">🏦 CMF (Chaikin Money Flow)</div><div class="rule-desc">CMF &gt; 0.1 → Net buying pressure<br>CMF &lt; -0.1 → Net selling pressure</div></div><div class="rule-points">+1</div></div>
-                <div class="rule-item"><div class="rule-num">18</div><div class="rule-content"><div class="rule-name">☁️ Ichimoku Cloud</div><div class="rule-desc">Price above both Senkou Span A & B → Bullish cloud position</div></div><div class="rule-points">+1</div></div>
-                <div class="rule-item"><div class="rule-num">19</div><div class="rule-content"><div class="rule-name">⛩️ Ichimoku TK Cross</div><div class="rule-desc">Tenkan-sen &gt; Kijun-sen → Short-term trend favors bulls</div></div><div class="rule-points">+1</div></div>
-                <div class="rule-item"><div class="rule-num">20</div><div class="rule-content"><div class="rule-name">🏔️ Pivot Points</div><div class="rule-desc">Price above R1 resistance → Breakout strength<br>Price below S1 → Support lost</div></div><div class="rule-points">+1</div></div>
-                <div class="rule-item"><div class="rule-num">21</div><div class="rule-content"><div class="rule-name">🤏 Bollinger Squeeze</div><div class="rule-desc">BB width &lt; 5% → Low volatility squeeze → Breakout imminent</div></div><div class="rule-points">+1</div></div>
-                <div class="rule-item"><div class="rule-num">22</div><div class="rule-content"><div class="rule-name">🛒 Near 52W Low (Value)</div><div class="rule-desc">Within 10% of 52-week low → Deep value territory</div></div><div class="rule-points">+1</div></div>
-                <div class="rule-item"><div class="rule-num">23</div><div class="rule-content"><div class="rule-name">🔊 Volume Spike + Price Up</div><div class="rule-desc">Volume &gt; 1.5x average AND price is up → Institutional buying</div></div><div class="rule-points">+1</div></div>
-                <div class="rule-item"><div class="rule-num">24</div><div class="rule-content"><div class="rule-name">🟢 Consecutive Green Candles</div><div class="rule-desc">3+ green candles in a row → Sustained buying momentum</div></div><div class="rule-points">+1</div></div>
-                <div class="rule-item"><div class="rule-num">25</div><div class="rule-content"><div class="rule-name">🏗️ Above 200-SMA</div><div class="rule-desc">Price &gt; SMA200 by 5%+ → Long-term uptrend intact</div></div><div class="rule-points">+1</div></div>
+        </header>
+
+        <!-- Stored Dates Bar -->
+        <section class="stored-dates-bar" id="storedDatesBar" aria-label="Stored analysis dates">
+            <div class="bar-title">
+                <span>Stored Analysis Dates</span>
+                <span class="bar-hint">Click a date to load pre-analyzed data (no Fyers needed)</span>
+                <div class="mode-toggle" role="group" aria-label="Data mode">
+                    <button class="mode-btn active" id="modeStored" type="button" aria-pressed="true">Stored</button>
+                    <button class="mode-btn" id="modeLive" type="button" aria-pressed="false">Live</button>
+                </div>
+            </div>
+            <div class="date-chips" id="dateChips"></div>
+        </section>
+
+        <!-- Real job progress -->
+        <section class="progress-banner" id="progressBanner" aria-live="polite">
+            <div class="pb-text" id="progressText"></div>
+            <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        </section>
+
+        <!-- Stats Bar -->
+        <section class="stats-bar" id="statsBar" style="display:none;" aria-label="Summary statistics">
+            <div class="stat-card"><div class="stat-value" style="color:var(--accent)" id="statTotal">0</div><div class="stat-label">Total Analyzed</div></div>
+            <div class="stat-card"><div class="stat-value" style="color:var(--green)" id="statQualified">0</div><div class="stat-label">Qualified</div></div>
+            <div class="stat-card"><div class="stat-value" style="color:var(--green)" id="statBullish">0</div><div class="stat-label">Score 10+</div></div>
+            <div class="stat-card"><div class="stat-value" style="color:var(--blue)" id="statStrong">0</div><div class="stat-label">Score 5-9</div></div>
+            <div class="stat-card"><div class="stat-value" id="statDate">&mdash;</div><div class="stat-label">Analysis Date</div></div>
+            <div class="stat-card" id="statAiBuyCard" style="display:none;"><div class="stat-value" style="color:var(--green)" id="statAiBuy">0</div><div class="stat-label">AI Buy</div></div>
+            <div class="stat-card" id="statAiSellCard" style="display:none;"><div class="stat-value" style="color:var(--red)" id="statAiSell">0</div><div class="stat-label">AI Avoid</div></div>
+            <div class="stat-card" id="statAiNeutralCard" style="display:none;"><div class="stat-value" style="color:var(--yellow)" id="statAiNeutral">0</div><div class="stat-label">AI Hold</div></div>
+        </section>
+
+        <!-- Filter Tabs + view toggle + search -->
+        <div class="filter-bar" id="filterBar" style="display:none;" role="group" aria-label="Filters and view options">
+            <button class="filter-tab active" data-filter="qualified" type="button" aria-pressed="true">Qualified</button>
+            <button class="filter-tab" data-filter="all" type="button" aria-pressed="false">All</button>
+            <button class="filter-tab" data-filter="oversold" type="button" aria-pressed="false">Oversold</button>
+            <button class="filter-tab" data-filter="momentum" type="button" aria-pressed="false">Momentum</button>
+            <button class="filter-tab" data-filter="golden" type="button" aria-pressed="false">Golden Cross</button>
+            <span class="ai-filter-divider" id="aiFilterDivider" style="display:none;" aria-hidden="true"></span>
+            <button class="filter-tab ai-buy" data-filter="ai-buy" id="aiFilterBuy" type="button" style="display:none;" aria-pressed="false">AI Buy</button>
+            <button class="filter-tab ai-sell" data-filter="ai-sell" id="aiFilterSell" type="button" style="display:none;" aria-pressed="false">AI Sell</button>
+            <button class="filter-tab ai-neutral" data-filter="ai-neutral" id="aiFilterNeutral" type="button" style="display:none;" aria-pressed="false">AI Neutral</button>
+
+            <div class="view-toggle" role="group" aria-label="View mode">
+                <button class="view-btn active" id="viewGrid" type="button" aria-pressed="true"><span aria-hidden="true">&#9638;</span> Cards</button>
+                <button class="view-btn" id="viewTable" type="button" aria-pressed="false"><span aria-hidden="true">&#9776;</span> Table</button>
+            </div>
+            <label class="sr-only" for="searchBox">Search stocks</label>
+            <input type="search" class="search-box" id="searchBox" placeholder="Search stock..." aria-label="Search stocks">
+        </div>
+
+        <!-- AI bar -->
+        <div class="ai-bar" id="aiBar">
+            <button class="btn btn-primary" id="aiBtn" type="button">Get AI Buy / Sell / Neutral</button>
+            <span class="ai-status" id="aiStatus" aria-live="polite"></span>
+            <span style="margin-left:auto; display:flex; gap:8px;">
+                <button class="icon-btn" id="exportCsv" type="button" aria-label="Export CSV"><span aria-hidden="true">&#11015;</span> CSV</button>
+                <button class="icon-btn" id="exportXlsx" type="button" aria-label="Export Excel"><span aria-hidden="true">&#11015;</span> Excel</button>
+            </span>
+        </div>
+
+        <!-- Main content -->
+        <main id="mainContent">
+            <div class="empty-state" id="emptyState">
+                <div class="icon" aria-hidden="true">&#128202;</div>
+                <h3 id="emptyStateTitle">Loading stored analysis&hellip;</h3>
+                <p>Click a date chip above to view stored data, or use Live mode with Fyers for real-time analysis.</p>
+            </div>
+
+            <!-- Skeleton placeholders shown while loading -->
+            <div class="skeleton-grid" id="skeletonGrid" style="display:none;" aria-hidden="true">
+                <div class="skeleton-card"><div class="skeleton-line" style="width:60%"></div><div class="skeleton-line" style="width:40%"></div><div class="skeleton-line" style="width:80%"></div><div class="skeleton-line"></div><div class="skeleton-line" style="width:90%"></div></div>
+                <div class="skeleton-card"><div class="skeleton-line" style="width:60%"></div><div class="skeleton-line" style="width:40%"></div><div class="skeleton-line" style="width:80%"></div><div class="skeleton-line"></div><div class="skeleton-line" style="width:90%"></div></div>
+                <div class="skeleton-card"><div class="skeleton-line" style="width:60%"></div><div class="skeleton-line" style="width:40%"></div><div class="skeleton-line" style="width:80%"></div><div class="skeleton-line"></div><div class="skeleton-line" style="width:90%"></div></div>
+                <div class="skeleton-card"><div class="skeleton-line" style="width:60%"></div><div class="skeleton-line" style="width:40%"></div><div class="skeleton-line" style="width:80%"></div><div class="skeleton-line"></div><div class="skeleton-line" style="width:90%"></div></div>
+                <div class="skeleton-card"><div class="skeleton-line" style="width:60%"></div><div class="skeleton-line" style="width:40%"></div><div class="skeleton-line" style="width:80%"></div><div class="skeleton-line"></div><div class="skeleton-line" style="width:90%"></div></div>
+                <div class="skeleton-card"><div class="skeleton-line" style="width:60%"></div><div class="skeleton-line" style="width:40%"></div><div class="skeleton-line" style="width:80%"></div><div class="skeleton-line"></div><div class="skeleton-line" style="width:90%"></div></div>
+            </div>
+
+            <!-- Virtualized card grid -->
+            <div class="grid-viewport" id="gridViewport">
+                <div class="grid-sizer" id="gridSizer"></div>
+            </div>
+
+            <!-- Table view (rendered by view.js) -->
+            <div class="table-wrap" id="tableWrap" style="display:none;"></div>
+
+            <!-- Fyers connect (Live mode) -->
+            <div class="connect-panel" id="fyersConnectPanel" style="display:none;">
+                <div style="font-size:32px;" aria-hidden="true">&#128273;</div>
+                <h3>Connect to Fyers for Live Analysis</h3>
+                <p>Required for real-time data. Stored data works without Fyers.</p>
+                <button class="btn btn-primary" id="fyersLoginBtn" type="button" style="margin-bottom:12px;">Open Fyers Login</button>
+                <div class="connect-input-row">
+                    <label class="sr-only" for="authUrlInput">Paste Fyers redirect URL</label>
+                    <input type="text" id="authUrlInput" placeholder="Paste the redirect URL here...">
+                    <button class="btn btn-primary" id="connectBtn" type="button">Connect</button>
+                </div>
+                <div id="connectMsg" style="margin-top:10px; font-size:13px;" aria-live="polite"></div>
+            </div>
+        </main>
+
+        <!-- Persistent disclaimer footer -->
+        <footer class="app-footer">
+            <strong>Not investment advice.</strong>
+            This dashboard is for educational and informational purposes only and does not constitute
+            financial, investment, or trading advice. Indicators and AI outputs can be wrong. Do your own
+            research and consult a SEBI-registered advisor before investing.
+            <a href="#" id="footerDisclaimerLink">View full disclaimer</a>
+        </footer>
+
+        <!-- Chatbot -->
+        <button class="chat-fab" id="chatFab" type="button" aria-expanded="false" aria-controls="chatPanel" aria-label="Open AI chat">&#128172;</button>
+        <div class="chat-panel" id="chatPanel" role="dialog" aria-label="Stock AI assistant">
+            <div class="chat-header">
+                <h3>Stock AI Assistant</h3>
+                <button class="modal-close" id="chatClose" type="button" aria-label="Close chat">&times;</button>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="chat-msg bot">Hi! Ask me anything about stocks, indicators, or trading. Try:<br><br>&bull; <em>"Analyze RELIANCE"</em><br>&bull; <em>"Is TCS a good buy?"</em><br>&bull; <em>"What does RSI oversold mean?"</em></div>
+            </div>
+            <div class="chat-typing" id="chatTyping"><span class="sr-only">Assistant is typing</span><span class="typing-dots" aria-hidden="true"><span></span><span></span><span></span></span></div>
+            <div class="chat-input-area">
+                <label class="sr-only" for="chatInput">Message</label>
+                <textarea class="chat-input" id="chatInput" placeholder="Ask about any stock..." rows="1"></textarea>
+                <button class="chat-send" id="chatSendBtn" type="button" aria-label="Send message">&#10148;</button>
             </div>
         </div>
-    </div>
-
-    <!-- Chatbot FAB + Panel -->
-    <button class="chat-fab" id="chatFab" onclick="toggleChat()" title="Stock AI Chat">💬</button>
-    <div class="chat-panel" id="chatPanel">
-        <div class="chat-header">
-            <h3>🤖 Stock AI Assistant</h3>
-            <button class="modal-close" onclick="toggleChat()" style="font-size:20px;">&times;</button>
-        </div>
-        <div class="chat-messages" id="chatMessages">
-            <div class="chat-msg bot">Hi! 👋 Ask me anything about stocks, indicators, or trading. Try:<br><br>• <em>"Analyze RELIANCE"</em><br>• <em>"Is TCS a good buy?"</em><br>• <em>"What does RSI oversold mean?"</em><br>• <em>"Compare INFY vs TCS"</em></div>
-        </div>
-        <div class="chat-typing" id="chatTyping"><div class="typing-dots"><span></span><span></span><span></span></div></div>
-        <div class="chat-input-area">
-            <textarea class="chat-input" id="chatInput" placeholder="Ask about any stock..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
-            <button class="chat-send" id="chatSendBtn" onclick="sendChat()">➤</button>
-        </div>
-    </div>
-
     </div><!-- /dashboardContainer -->
 
-    <script>
-        // ─── Chatbot Logic ──────────────────────────────────────
-        function toggleChat() {
-            const panel = document.getElementById('chatPanel');
-            const fab = document.getElementById('chatFab');
-            const isOpen = panel.classList.toggle('open');
-            fab.innerHTML = isOpen ? '✕' : '💬';
-            if (isOpen) document.getElementById('chatInput').focus();
-        }
+    <!-- ─── Rules Modal ──────────────────────────────────────── -->
+    <div class="modal-overlay" id="rulesModal" role="dialog" aria-modal="true" aria-labelledby="rulesTitle" aria-hidden="true">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h2 id="rulesTitle">25 Indicator Scoring Rules (Max 30 pts)</h2>
+                <button class="modal-close" type="button" data-close-modal aria-label="Close rules">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="rule-item"><div class="rule-num">1</div><div class="rule-content"><div class="rule-name">RSI (Relative Strength Index)</div><div class="rule-desc">RSI &lt; 30 oversold (strong buy zone); 30&ndash;40 mild buy; &gt; 70 overbought (caution)</div></div><div class="rule-points">+2 / +1</div></div>
+                <div class="rule-item"><div class="rule-num">2</div><div class="rule-content"><div class="rule-name">MACD Crossover</div><div class="rule-desc">MACD line crosses above signal line &rarr; bullish momentum starting</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">3</div><div class="rule-content"><div class="rule-name">MACD Histogram Rising</div><div class="rule-desc">Histogram positive and rising &rarr; accelerating bullish momentum</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">4</div><div class="rule-content"><div class="rule-name">Below 20-SMA (Dip Buy)</div><div class="rule-desc">Price below 20-day SMA &rarr; potential mean-reversion buy</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">5</div><div class="rule-content"><div class="rule-name">Stochastic Oversold</div><div class="rule-desc">%K &lt; 20 oversold; %K &lt; 20 and %K &gt; %D bullish cross in oversold</div></div><div class="rule-points">+1 / +2</div></div>
+                <div class="rule-item"><div class="rule-num">6</div><div class="rule-content"><div class="rule-name">Near 52-Week High</div><div class="rule-desc">&lt; 5% from 52W high strong momentum; &lt; 10% close to high</div></div><div class="rule-points">+2 / +1</div></div>
+                <div class="rule-item"><div class="rule-num">7</div><div class="rule-content"><div class="rule-name">Golden Cross</div><div class="rule-desc">Price &gt; SMA20 &gt; SMA50 &gt; SMA200 &rarr; perfect MA alignment</div></div><div class="rule-points">+2</div></div>
+                <div class="rule-item"><div class="rule-num">8</div><div class="rule-content"><div class="rule-name">Below Bollinger Lower Band</div><div class="rule-desc">Price below lower BB &rarr; statistically oversold, likely to revert</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">9</div><div class="rule-content"><div class="rule-name">EMA 9/21 Cross</div><div class="rule-desc">EMA9 crosses above EMA21 short-term bullish; EMA9 &gt; EMA21 already bullish</div></div><div class="rule-points">+2 / +1</div></div>
+                <div class="rule-item"><div class="rule-num">10</div><div class="rule-content"><div class="rule-name">ADX Trend + DI+</div><div class="rule-desc">ADX &gt; 25 with DI+ &gt; DI- strong uptrend; 20&ndash;25 moderate uptrend</div></div><div class="rule-points">+2 / +1</div></div>
+                <div class="rule-item"><div class="rule-num">11</div><div class="rule-content"><div class="rule-name">CCI</div><div class="rule-desc">CCI &lt; -100 oversold reversal; &gt; 100 overbought zone</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">12</div><div class="rule-content"><div class="rule-name">Williams %R</div><div class="rule-desc">%R &lt; -80 oversold territory (buy signal)</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">13</div><div class="rule-content"><div class="rule-name">MFI (Money Flow Index)</div><div class="rule-desc">MFI &lt; 20 strong inflow (oversold); 20&ndash;40 moderate buy; &gt; 80 overbought</div></div><div class="rule-points">+2 / +1</div></div>
+                <div class="rule-item"><div class="rule-num">14</div><div class="rule-content"><div class="rule-name">OBV (On-Balance Volume)</div><div class="rule-desc">OBV rising and price up &rarr; volume confirms uptrend</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">15</div><div class="rule-content"><div class="rule-name">Below VWAP</div><div class="rule-desc">Price below VWAP &rarr; trading below average price</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">16</div><div class="rule-content"><div class="rule-name">ROC (Rate of Change)</div><div class="rule-desc">ROC &gt; 5% strong positive momentum; &lt; -10% weak</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">17</div><div class="rule-content"><div class="rule-name">CMF (Chaikin Money Flow)</div><div class="rule-desc">CMF &gt; 0.1 net buying; &lt; -0.1 net selling pressure</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">18</div><div class="rule-content"><div class="rule-name">Ichimoku Cloud</div><div class="rule-desc">Price above both Senkou spans &rarr; bullish cloud position</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">19</div><div class="rule-content"><div class="rule-name">Ichimoku TK Cross</div><div class="rule-desc">Tenkan-sen &gt; Kijun-sen &rarr; short-term trend favors bulls</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">20</div><div class="rule-content"><div class="rule-name">Pivot Points</div><div class="rule-desc">Price above R1 breakout strength; below S1 support lost</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">21</div><div class="rule-content"><div class="rule-name">Bollinger Squeeze</div><div class="rule-desc">BB width &lt; 5% &rarr; low volatility squeeze, breakout imminent</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">22</div><div class="rule-content"><div class="rule-name">Near 52W Low (Value)</div><div class="rule-desc">Within 10% of 52-week low &rarr; deep value territory</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">23</div><div class="rule-content"><div class="rule-name">Volume Spike + Price Up</div><div class="rule-desc">Volume &gt; 1.5x average and price up &rarr; institutional buying</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">24</div><div class="rule-content"><div class="rule-name">Consecutive Green Candles</div><div class="rule-desc">3+ green candles in a row &rarr; sustained buying momentum</div></div><div class="rule-points">+1</div></div>
+                <div class="rule-item"><div class="rule-num">25</div><div class="rule-content"><div class="rule-name">Above 200-SMA</div><div class="rule-desc">Price &gt; SMA200 by 5%+ &rarr; long-term uptrend intact</div></div><div class="rule-points">+1</div></div>
+            </div>
+        </div>
+    </div>
 
-        async function sendChat() {
-            const input = document.getElementById('chatInput');
-            const msg = input.value.trim();
-            if (!msg) return;
+    <!-- ─── Stock Detail Modal ───────────────────────────────── -->
+    <div class="modal-overlay" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailTitle" aria-hidden="true">
+        <div class="modal-box wide">
+            <div class="modal-header">
+                <h2 id="detailTitle">Stock Detail</h2>
+                <button class="modal-close" type="button" data-close-modal aria-label="Close detail">&times;</button>
+            </div>
+            <div class="modal-body" id="detailBody"></div>
+        </div>
+    </div>
 
-            const messages = document.getElementById('chatMessages');
-            const typing = document.getElementById('chatTyping');
-            const sendBtn = document.getElementById('chatSendBtn');
+    <!-- ─── Watchlist Modal ──────────────────────────────────── -->
+    <div class="modal-overlay" id="watchlistModal" role="dialog" aria-modal="true" aria-labelledby="watchlistTitle" aria-hidden="true">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h2 id="watchlistTitle">Your Watchlist</h2>
+                <button class="modal-close" type="button" data-close-modal aria-label="Close watchlist">&times;</button>
+            </div>
+            <div class="modal-body" id="watchlistBody"></div>
+        </div>
+    </div>
 
-            // Add user message
-            const userEl = document.createElement('div');
-            userEl.className = 'chat-msg user';
-            userEl.textContent = msg;
-            messages.appendChild(userEl);
-            input.value = '';
-            sendBtn.disabled = true;
+    <!-- ─── Alerts Modal (Task 46) ───────────────────────────── -->
+    <div class="modal-overlay" id="alertsModal" role="dialog" aria-modal="true" aria-labelledby="alertsTitle" aria-hidden="true">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h2 id="alertsTitle">Price &amp; Indicator Alerts</h2>
+                <button class="modal-close" type="button" data-close-modal aria-label="Close alerts">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="alertForm">
+                    <div class="form-grid">
+                        <div class="form-field full">
+                            <label for="alertName">Name (optional)</label>
+                            <input type="text" id="alertName" placeholder="e.g. Oversold large caps">
+                        </div>
+                        <div class="form-field">
+                            <label for="alertMetric">Metric</label>
+                            <select id="alertMetric">
+                                <option value="score">Score</option>
+                                <option value="rsi">RSI</option>
+                                <option value="change_pct">Change %</option>
+                                <option value="adx">ADX</option>
+                                <option value="mfi">MFI</option>
+                                <option value="vol_ratio">Volume ratio</option>
+                                <option value="price">Price</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label for="alertOperator">Condition</label>
+                            <select id="alertOperator">
+                                <option value="&gt;=">&ge;</option>
+                                <option value="&lt;=">&le;</option>
+                                <option value="&gt;">&gt;</option>
+                                <option value="&lt;">&lt;</option>
+                                <option value="==">=</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label for="alertThreshold">Threshold</label>
+                            <input type="number" id="alertThreshold" step="any" placeholder="e.g. 30">
+                        </div>
+                        <div class="form-field">
+                            <label for="alertChannel">Channel</label>
+                            <select id="alertChannel">
+                                <option value="email">Email</option>
+                                <option value="telegram">Telegram</option>
+                            </select>
+                        </div>
+                        <div class="form-field full">
+                            <label for="alertTarget">Target (email address or Telegram chat id)</label>
+                            <input type="text" id="alertTarget" placeholder="you@example.com">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="alertSubmit">Add Alert</button>
+                </form>
+                <div class="detail-section-title">Active rules</div>
+                <div id="alertsList" class="rule-list"></div>
+            </div>
+        </div>
+    </div>
 
-            // Show typing
-            typing.classList.add('show');
-            messages.scrollTop = messages.scrollHeight;
+    <!-- ─── Backtest Modal (Task 45) ─────────────────────────── -->
+    <div class="modal-overlay" id="backtestModal" role="dialog" aria-modal="true" aria-labelledby="backtestTitle" aria-hidden="true">
+        <div class="modal-box wide">
+            <div class="modal-header">
+                <h2 id="backtestTitle">Strategy Backtest</h2>
+                <button class="modal-close" type="button" data-close-modal aria-label="Close backtest">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color:var(--text-muted); font-size:13px; margin-bottom:14px;">
+                    Walk-forward simulation (no look-ahead). Requires a live Fyers connection for historical data.
+                </p>
+                <form id="backtestForm">
+                    <div class="form-grid">
+                        <div class="form-field">
+                            <label for="btCategory">Universe</label>
+                            <select id="btCategory">
+                                <option value="nifty50">NIFTY 50</option>
+                                <option value="nifty100">NIFTY 100</option>
+                                <option value="nifty200">NIFTY 200</option>
+                                <option value="nifty500">NIFTY 500</option>
+                            </select>
+                        </div>
+                        <div class="form-field">
+                            <label for="btMinScore">Min score</label>
+                            <input type="number" id="btMinScore" value="8" min="0" max="30">
+                        </div>
+                        <div class="form-field">
+                            <label for="btStart">Start date</label>
+                            <input type="date" id="btStart">
+                        </div>
+                        <div class="form-field">
+                            <label for="btEnd">End date</label>
+                            <input type="date" id="btEnd">
+                        </div>
+                        <div class="form-field">
+                            <label for="btHoldDays">Hold days</label>
+                            <input type="number" id="btHoldDays" value="5" min="1" max="60">
+                        </div>
+                        <div class="form-field">
+                            <label for="btTarget">Target %</label>
+                            <input type="number" id="btTarget" value="5" step="any">
+                        </div>
+                        <div class="form-field">
+                            <label for="btStop">Stop %</label>
+                            <input type="number" id="btStop" value="3" step="any">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="btRunBtn">Run Backtest</button>
+                </form>
+                <div id="btResults" style="margin-top:16px;"></div>
+            </div>
+        </div>
+    </div>
 
-            try {
-                // Include analyzed stock data for context if available
-                const stockContext = allResults.length > 0 ? allResults.slice(0, 20).map(s => ({
-                    name: s.name, price: s.price, score: s.score, rsi: s.rsi,
-                    macd_hist: s.macd_hist, change_pct: s.change_pct,
-                    sma20: s.sma20, sma50: s.sma50, sma200: s.sma200,
-                    adx: s.adx, vol_ratio: s.vol_ratio
-                })) : [];
-
-                const res = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: msg, stock_context: stockContext })
-                });
-                const data = await res.json();
-
-                const botEl = document.createElement('div');
-                botEl.className = 'chat-msg bot';
-                botEl.innerHTML = data.reply || data.error || 'No response';
-                messages.appendChild(botEl);
-            } catch (err) {
-                const errEl = document.createElement('div');
-                errEl.className = 'chat-msg bot';
-                errEl.textContent = '❌ Error: ' + err.message;
-                messages.appendChild(errEl);
-            } finally {
-                typing.classList.remove('show');
-                sendBtn.disabled = false;
-                messages.scrollTop = messages.scrollHeight;
-            }
-        }
-    </script>
-
-    <script>
-        // ─── Login Logic ─────────────────────────────────────────
-        (function() {
-            // Check if already logged in this session
-            if (sessionStorage.getItem('dash_authed') === '1') {
-                document.getElementById('loginOverlay').classList.add('hidden');
-                document.getElementById('dashboardContainer').style.display = '';
-                // Load stored dates and auto-load latest analysis
-                loadStoredDates(true);
-            }
-        })();
-
-        function handleLogin(e) {
-            e.preventDefault();
-            const user = document.getElementById('loginUser').value.trim();
-            const pass = document.getElementById('loginPass').value;
-            const errEl = document.getElementById('loginError');
-            const box = document.getElementById('loginBox');
-
-            if (user === 'Trader' && pass === 'abcd@1234') {
-                sessionStorage.setItem('dash_authed', '1');
-                errEl.textContent = '';
-                document.getElementById('loginOverlay').classList.add('hidden');
-                document.getElementById('dashboardContainer').style.display = '';
-                // Load stored dates and auto-load latest analysis
-                loadStoredDates(true);
-            } else {
-                errEl.textContent = '❌ Invalid username or password';
-                box.classList.remove('login-shake');
-                void box.offsetWidth; // reflow to restart animation
-                box.classList.add('login-shake');
-                document.getElementById('loginPass').value = '';
-                document.getElementById('loginPass').focus();
-            }
-            return false;
-        }
-    </script>
+    <!-- ─── Disclaimer Acknowledgment Modal (one-time) ───────── -->
+    <div class="modal-overlay" id="disclaimerModal" role="dialog" aria-modal="true" aria-labelledby="disclaimerTitle" aria-hidden="true">
+        <div class="modal-box" style="width:520px;">
+            <div class="modal-header">
+                <h2 id="disclaimerTitle">Important Disclaimer</h2>
+            </div>
+            <div class="modal-body">
+                <p style="line-height:1.7; margin-bottom:16px;">
+                    This dashboard provides <strong>technical analysis and AI-generated insights for educational
+                    purposes only</strong>. It is <strong>not investment advice</strong> and not a recommendation to
+                    buy or sell any security. Markets are risky and indicators can be wrong.
+                </p>
+                <p style="line-height:1.7; margin-bottom:20px; color:var(--text-muted);">
+                    Always do your own research and consult a SEBI-registered financial advisor before making any
+                    trading or investment decision. You are solely responsible for your decisions.
+                </p>
+                <button class="btn btn-primary" id="disclaimerAck" type="button" data-autofocus
+                    style="width:100%; justify-content:center;">I Understand &amp; Acknowledge</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
