@@ -29,6 +29,27 @@ const CATEGORY_LABELS = {
     nifty500: 'NIFTY 500', all: 'All NSE',
 };
 
+/** Must match ``strategy.STRATEGY.thresholds`` (buy / sell). */
+const SIGNAL_THRESHOLDS = { buy: 3, sell: -3 };
+
+function enrichStock(s) {
+    const bull = Number(s.score) || 0;
+    const bear = Number(s.bear_score) || 0;
+    if (s.net_score == null) s.net_score = bull - bear;
+    let sig = (s.signal || '').toUpperCase();
+    if (!sig) {
+        if (s.net_score >= SIGNAL_THRESHOLDS.buy) sig = 'BUY';
+        else if (s.net_score <= SIGNAL_THRESHOLDS.sell) sig = 'SELL';
+        else sig = 'NEUTRAL';
+        s.signal = sig;
+    }
+    return s;
+}
+
+function enrichAll(stocks) {
+    return (stocks || []).map(enrichStock);
+}
+
 /* ─── State ────────────────────────────────────────────────── */
 const state = {
     allResults: [],
@@ -321,7 +342,9 @@ async function runAnalysis() {
         const data = await api.analyze({ date, min_score: minScore, category }, controller.signal);
         setProgress(90);
         loadPayload(data);
-        toast('Analysis complete', 'success');
+        const buys = state.allResults.filter((s) => (s.signal || '').toUpperCase() === 'BUY').length;
+        const sells = state.allResults.filter((s) => (s.signal || '').toUpperCase() === 'SELL').length;
+        toast(`Analysis complete — ${buys} Buy, ${sells} Sell signals`, 'success');
     } catch (err) {
         hideSkeleton();
         if (err.name === 'AbortError') {
@@ -435,7 +458,9 @@ async function loadStoredData(date, category, chipEl) {
 /* ─── Load a payload into the dashboard ────────────────────── */
 function loadPayload(data, { stored = false } = {}) {
     hideSkeleton();
-    state.allResults = [...(data.qualified || []), ...(data.unqualified || [])];
+    const qualified = enrichAll(data.qualified || []);
+    const unqualified = enrichAll(data.unqualified || []);
+    state.allResults = [...qualified, ...unqualified];
     state.lastMeta = { date: data.date, category: data.category, category_label: data.category_label };
     if (data.ai_recommendations) state.ai = data.ai_recommendations;
     else if (!stored) state.ai = {};
@@ -456,6 +481,12 @@ function loadPayload(data, { stored = false } = {}) {
 
 function updateStats(data) {
     $('statTotal').textContent = data.total_stocks ?? state.allResults.length;
+    const buys = state.allResults.filter((s) => (s.signal || '').toUpperCase() === 'BUY').length;
+    const sells = state.allResults.filter((s) => (s.signal || '').toUpperCase() === 'SELL').length;
+    const neutrals = state.allResults.filter((s) => (s.signal || '').toUpperCase() === 'NEUTRAL').length;
+    $('statSignalBuy').textContent = buys;
+    $('statSignalSell').textContent = sells;
+    $('statSignalNeutral').textContent = neutrals;
     $('statQualified').textContent = data.qualified_count ?? (data.qualified || []).length;
     $('statBullish').textContent = state.allResults.filter((s) => s.score >= 10).length;
     $('statStrong').textContent = state.allResults.filter((s) => s.score >= 5 && s.score < 10).length;
@@ -537,6 +568,9 @@ function computeRows() {
     switch (state.filter) {
         case 'all': break;
         case 'qualified': rows = rows.filter((s) => s.score >= minScore); break;
+        case 'signal-buy': rows = rows.filter((s) => (s.signal || '').toUpperCase() === 'BUY'); break;
+        case 'signal-sell': rows = rows.filter((s) => (s.signal || '').toUpperCase() === 'SELL'); break;
+        case 'signal-neutral': rows = rows.filter((s) => (s.signal || '').toUpperCase() === 'NEUTRAL'); break;
         case 'oversold': rows = rows.filter((s) => s.rsi < 35); break;
         case 'momentum': rows = rows.filter((s) => (s.dist_52w ?? 100) < 5); break;
         case 'golden': rows = rows.filter((s) => (s.reasons || []).some((r) => /golden cross/i.test(r.text || ''))); break;
@@ -550,8 +584,12 @@ function computeRows() {
         rows = rows.filter((s) =>
             (s.name || '').toLowerCase().includes(q) || (s.symbol || '').toLowerCase().includes(q));
     }
-    // Default ordering: highest score first (table view re-sorts on demand).
-    return rows.slice().sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0));
+    // Default ordering: signal filters by net score; otherwise bull score.
+    const signalSort = ['signal-buy', 'signal-sell', 'signal-neutral'].includes(state.filter);
+    return rows.slice().sort((a, b) => {
+        if (signalSort) return (Number(b.net_score) || 0) - (Number(a.net_score) || 0);
+        return (Number(b.score) || 0) - (Number(a.score) || 0);
+    });
 }
 
 function renderResults() {

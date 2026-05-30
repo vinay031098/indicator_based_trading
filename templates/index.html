@@ -153,6 +153,9 @@
         <!-- Stats Bar -->
         <section class="stats-bar" id="statsBar" style="display:none;" aria-label="Summary statistics">
             <div class="stat-card"><div class="stat-value" style="color:var(--accent)" id="statTotal">0</div><div class="stat-label">Total Analyzed</div></div>
+            <div class="stat-card"><div class="stat-value" style="color:var(--green)" id="statSignalBuy">0</div><div class="stat-label">Buy Signal</div></div>
+            <div class="stat-card"><div class="stat-value" style="color:var(--red)" id="statSignalSell">0</div><div class="stat-label">Sell Signal</div></div>
+            <div class="stat-card"><div class="stat-value" style="color:var(--yellow)" id="statSignalNeutral">0</div><div class="stat-label">Neutral</div></div>
             <div class="stat-card"><div class="stat-value" style="color:var(--green)" id="statQualified">0</div><div class="stat-label">Qualified</div></div>
             <div class="stat-card"><div class="stat-value" style="color:var(--green)" id="statBullish">0</div><div class="stat-label">Score 10+</div></div>
             <div class="stat-card"><div class="stat-value" style="color:var(--blue)" id="statStrong">0</div><div class="stat-label">Score 5-9</div></div>
@@ -164,6 +167,10 @@
 
         <!-- Filter Tabs + view toggle + search -->
         <div class="filter-bar" id="filterBar" style="display:none;" role="group" aria-label="Filters and view options">
+            <button class="filter-tab signal-buy" data-filter="signal-buy" type="button" aria-pressed="false">Buy</button>
+            <button class="filter-tab signal-sell" data-filter="signal-sell" type="button" aria-pressed="false">Sell</button>
+            <button class="filter-tab signal-neutral" data-filter="signal-neutral" type="button" aria-pressed="false">Neutral</button>
+            <span class="signal-filter-divider" aria-hidden="true"></span>
             <button class="filter-tab active" data-filter="qualified" type="button" aria-pressed="true">Qualified</button>
             <button class="filter-tab" data-filter="all" type="button" aria-pressed="false">All</button>
             <button class="filter-tab" data-filter="oversold" type="button" aria-pressed="false">Oversold</button>

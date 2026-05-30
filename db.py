@@ -37,6 +37,7 @@ from sqlalchemy.orm import (
 )
 
 from config import settings
+from strategy import STRATEGY
 
 logger = logging.getLogger(__name__)
 
@@ -330,11 +331,28 @@ def get_run_by_date(run_date: str, category: str = "all") -> Optional[Dict]:
         return {"id": r.id, "total_stocks": r.total_stocks} if r else None
 
 
+def _enrich_stock_fields(d: Dict) -> Dict:
+    """Derive net_score and signal for rows saved before those fields existed."""
+    bull = int(d.get("score") or 0)
+    bear = int(d.get("bear_score") or 0)
+    d["net_score"] = bull - bear
+    sig = (d.get("signal") or "").strip().upper()
+    if not sig:
+        th = STRATEGY.thresholds
+        if d["net_score"] >= th.buy:
+            d["signal"] = "BUY"
+        elif d["net_score"] <= th.sell:
+            d["signal"] = "SELL"
+        else:
+            d["signal"] = "NEUTRAL"
+    return d
+
+
 def _stock_to_dict(row: StockAnalysis) -> Dict:
     d = {c: getattr(row, c) for c in _STOCK_COLS}
     d["change"] = d.pop("change_val", 0)
     d["reasons"] = json.loads(d.pop("reasons_json", "[]") or "[]")
-    return d
+    return _enrich_stock_fields(d)
 
 
 def get_stored_analysis(run_id: int, min_score: int = 0) -> Dict:

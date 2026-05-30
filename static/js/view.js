@@ -13,7 +13,9 @@ const TABLE_COLS = [
     { key: 'name', label: 'Name', type: 'text' },
     { key: 'price', label: 'Price', type: 'num', fmt: (s) => inr(s.price) },
     { key: 'change_pct', label: 'Chg %', type: 'num', fmt: (s) => pct(s.change_pct) },
-    { key: 'score', label: 'Score', type: 'num', fmt: (s) => num(s.score, 0) },
+    { key: 'score', label: 'Bull', type: 'num', fmt: (s) => num(s.score, 0) },
+    { key: 'bear_score', label: 'Bear', type: 'num', fmt: (s) => num(s.bear_score, 0) },
+    { key: 'net_score', label: 'Net', type: 'num', fmt: (s) => signed(s.net_score, 0) },
     { key: 'signal', label: 'Signal', type: 'text', fmt: (s) => signalLabel(s.signal).text },
     { key: 'rsi', label: 'RSI', type: 'num', fmt: (s) => num(s.rsi, 1) },
     { key: 'adx', label: 'ADX', type: 'num', fmt: (s) => num(s.adx, 1) },
@@ -195,7 +197,7 @@ export class StockView {
             <div class="card-header">
                 <div class="card-head-left">
                     <div class="stock-name">${esc(s.name)}</div>
-                    <div class="stock-exchange">NSE &middot; Score ${score}/30</div>
+                    <div class="stock-exchange">NSE &middot; Net ${esc(signed(s.net_score, 0))} &middot; Bull ${score}</div>
                 </div>
                 <div class="card-head-right">
                     <button class="star-btn ${starred ? 'starred' : ''}" data-action="star"

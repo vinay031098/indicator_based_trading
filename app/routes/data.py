@@ -90,7 +90,7 @@ def api_export():
     if not stocks:
         raise NotFoundError("No stocks to export.")
 
-    cols = ["name", "symbol", "price", "change_pct", "score", "bear_score", "signal",
+    cols = ["name", "symbol", "price", "change_pct", "score", "bear_score", "net_score", "signal",
             "rsi", "macd_hist", "adx", "mfi", "vol_ratio"]
     if fmt == "xlsx":
         return _export_xlsx(stocks, cols, run_date, category)

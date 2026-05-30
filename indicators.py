@@ -29,6 +29,7 @@ Design notes (Phase 2 — Trading Logic & Correctness):
 from __future__ import annotations
 
 import logging
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -49,6 +50,19 @@ def _last(series, default: float = 0.0) -> float:
     arr = np.asarray(series, dtype=float).flatten()
     arr = arr[~np.isnan(arr)]
     return float(arr[-1]) if arr.size else float(default)
+
+
+def _optional_last(series) -> Optional[float]:
+    """Last non-NaN value, or ``None`` when the series has no valid data."""
+    arr = np.asarray(series, dtype=float).flatten()
+    arr = arr[~np.isnan(arr)]
+    return float(arr[-1]) if arr.size else None
+
+
+def _round_or_none(value: Optional[float], digits: int = 2):
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return None
+    return round(float(value), digits)
 
 
 def wilder_rma(values, period: int) -> np.ndarray:
@@ -352,6 +366,10 @@ def analyze_stock(symbol, data, strategy: Strategy = STRATEGY):
         macd_val = float(macd_line[-1])
         macd_signal_val = float(signal_line[-1])
         macd_hist = macd_val - macd_signal_val
+        prev_macd = float(macd_line[-2]) if macd_line.size > 1 else macd_val
+        prev_macd_signal = float(signal_line[-2]) if signal_line.size > 1 else macd_signal_val
+        macd_cross_bull = (macd_val > macd_signal_val) and (prev_macd <= prev_macd_signal)
+        macd_cross_bear = (macd_val < macd_signal_val) and (prev_macd >= prev_macd_signal)
         prev_macd_hist = float(hist_line[-2]) if hist_line.size > 1 else 0.0
         macd_hist_rising = macd_hist > prev_macd_hist
 
@@ -378,9 +396,9 @@ def analyze_stock(symbol, data, strategy: Strategy = STRATEGY):
         atr_pct = (atr_val / price * 100.0) if price > 0 else 0.0
 
         adx_s, plus_di_s, minus_di_s = adx_components(high, low, close, p.adx)
-        adx_val = _last(adx_s, 0.0)
-        plus_di = _last(plus_di_s, 0.0)
-        minus_di = _last(minus_di_s, 0.0)
+        adx_val = _optional_last(adx_s)
+        plus_di = _optional_last(plus_di_s)
+        minus_di = _optional_last(minus_di_s)
 
         cci_val = cci(high, low, close, p.cci)
         wr_val = williams_r(high, low, close, p.williams)
@@ -396,6 +414,14 @@ def analyze_stock(symbol, data, strategy: Strategy = STRATEGY):
         tenkan, kijun, senkou_a, senkou_b = ichimoku(
             high, low, close, p.ichimoku_tenkan, p.ichimoku_kijun, p.ichimoku_senkou_b
         )
+        ichimoku_tk_bull = ichimoku_tk_bear = False
+        if close.size > p.ichimoku_kijun:
+            prev_tenkan, prev_kijun, _, _ = ichimoku(
+                high[:-1], low[:-1], close[:-1],
+                p.ichimoku_tenkan, p.ichimoku_kijun, p.ichimoku_senkou_b,
+            )
+            ichimoku_tk_bull = tenkan > kijun and prev_tenkan <= prev_kijun
+            ichimoku_tk_bear = tenkan < kijun and prev_tenkan >= prev_kijun
         pp, s1, r1, s2, r2 = pivot_points(high, low, close)
 
         # Consecutive green / red candles (short, bounded loop).
@@ -443,11 +469,11 @@ def analyze_stock(symbol, data, strategy: Strategy = STRATEGY):
         elif rsi > lv.rsi_high:
             add_bear("rsi_high", f"RSI High ({rsi:.1f})", "📊")
 
-        # 2. MACD crossover (mutually exclusive)
-        if macd_val > macd_signal_val:
+        # 2. MACD crossover (event-based — not persistent above/below state)
+        if macd_cross_bull:
             add_bull("macd_bull_cross", "MACD Bullish Crossover", "✅")
-        else:
-            add_bear("macd_bear_cross", "MACD Bearish", "❌")
+        elif macd_cross_bear:
+            add_bear("macd_bear_cross", "MACD Bearish Crossover", "❌")
 
         # 3. MACD histogram momentum (exclusive)
         if macd_hist > 0 and macd_hist_rising:
@@ -504,15 +530,16 @@ def analyze_stock(symbol, data, strategy: Strategy = STRATEGY):
         elif ema9 < ema21:
             add_bear("ema_fast_below_slow", "EMA 9 below EMA 21", "📏")
 
-        # 10. ADX trend strength + DI dominance (exclusive)
-        if adx_val > lv.adx_strong and plus_di > minus_di:
-            add_bull("adx_strong_up", f"Strong Uptrend ADX={adx_val:.0f} DI+>DI-", "💪")
-        elif adx_val > lv.adx_moderate and plus_di > minus_di:
-            add_bull("adx_moderate_up", f"Moderate Uptrend ADX={adx_val:.0f}", "📊")
-        elif adx_val > lv.adx_strong and minus_di > plus_di:
-            add_bear("adx_strong_down", f"Strong Downtrend ADX={adx_val:.0f} DI->DI+", "⛔")
-        elif adx_val > lv.adx_moderate and minus_di > plus_di:
-            add_bear("adx_moderate_down", f"Moderate Downtrend ADX={adx_val:.0f}", "📉")
+        # 10. ADX trend strength + DI dominance (exclusive; skip if ADX not ready)
+        if adx_val is not None and plus_di is not None and minus_di is not None:
+            if adx_val > lv.adx_strong and plus_di > minus_di:
+                add_bull("adx_strong_up", f"Strong Uptrend ADX={adx_val:.0f} DI+>DI-", "💪")
+            elif adx_val > lv.adx_moderate and plus_di > minus_di:
+                add_bull("adx_moderate_up", f"Moderate Uptrend ADX={adx_val:.0f}", "📊")
+            elif adx_val > lv.adx_strong and minus_di > plus_di:
+                add_bear("adx_strong_down", f"Strong Downtrend ADX={adx_val:.0f} DI->DI+", "⛔")
+            elif adx_val > lv.adx_moderate and minus_di > plus_di:
+                add_bear("adx_moderate_down", f"Moderate Downtrend ADX={adx_val:.0f}", "📉")
 
         # 11. CCI (exclusive)
         if cci_val < lv.cci_oversold:
@@ -566,10 +593,10 @@ def analyze_stock(symbol, data, strategy: Strategy = STRATEGY):
         elif price < senkou_a and price < senkou_b:
             add_bear("below_cloud", "Below Ichimoku Cloud — Bearish", "🌧️")
 
-        # 19. Ichimoku TK cross (exclusive)
-        if tenkan > kijun:
+        # 19. Ichimoku TK cross (event-based)
+        if ichimoku_tk_bull:
             add_bull("ichimoku_tk_bull", "Ichimoku TK Cross Bullish", "⛩️")
-        elif tenkan < kijun:
+        elif ichimoku_tk_bear:
             add_bear("ichimoku_tk_bear", "Ichimoku TK Cross Bearish", "🌫️")
 
         # 20. Pivot R1 / S1 (exclusive — price can only be on one side)
@@ -644,9 +671,9 @@ def analyze_stock(symbol, data, strategy: Strategy = STRATEGY):
             "vol_ratio": round(vol_ratio, 1),
             "atr": round(atr_val, 2),
             "atr_pct": round(atr_pct, 1),
-            "adx": round(adx_val, 1),
-            "plus_di": round(plus_di, 1),
-            "minus_di": round(minus_di, 1),
+            "adx": _round_or_none(adx_val, 1),
+            "plus_di": _round_or_none(plus_di, 1),
+            "minus_di": _round_or_none(minus_di, 1),
             "cci": round(cci_val, 0),
             "williams_r": round(wr_val, 0),
             "mfi": round(mfi_val, 1),
