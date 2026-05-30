@@ -20,18 +20,29 @@ _TOKEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".fyers_t
 
 # ─── Dashboard password ────────────────────────────────────────────
 
+# Default credentials when Render/env sync has not set auth vars yet.
+_DEFAULT_DASHBOARD_USER = "Trader"
+_DEFAULT_DASHBOARD_PASSWORD = "abcd@1234"
+
+
 def verify_dashboard_login(username: str, password: str) -> bool:
-    """Check username + password (plain env or werkzeug hash)."""
+    """Check username + password (plain env, werkzeug hash, or built-in default)."""
     if username != settings.dashboard_user:
         return False
     plain = (settings.dashboard_password or "").strip()
     if plain:
         return hmac.compare_digest(password, plain)
     pwd_hash = (settings.dashboard_password_hash or "").strip()
-    if not pwd_hash:
-        logger.warning("Dashboard login disabled: set DASHBOARD_PASSWORD or DASHBOARD_PASSWORD_HASH.")
-        return False
-    return check_password_hash(pwd_hash, password)
+    if pwd_hash:
+        return check_password_hash(pwd_hash, password)
+    # Render often deploys code before env vars from render.yaml are synced.
+    if username == _DEFAULT_DASHBOARD_USER:
+        logger.warning(
+            "Dashboard auth env missing — using built-in credentials. "
+            "Set DASHBOARD_PASSWORD on Render."
+        )
+        return hmac.compare_digest(password, _DEFAULT_DASHBOARD_PASSWORD)
+    return False
 
 
 def make_password_hash(password: str) -> str:
