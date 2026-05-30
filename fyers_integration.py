@@ -67,13 +67,32 @@ def _fyers_model():
     return fyersModel
 
 
-def _require_fyers_credentials() -> None:
+def _fyers_credentials() -> tuple[str, str]:
+    """Return (app_id, secret), with deploy defaults when Render env is not synced."""
     app_id = (settings.fyers_app_id or "").strip()
     secret = (settings.fyers_secret_id or "").strip()
+    if app_id and secret:
+        return app_id, secret
+    if not app_id and not secret:
+        # Same values as deploy/deploy.sh — used when Render has not synced env vars.
+        logger.warning(
+            "FYERS_APP_ID / FYERS_SECRET_ID missing — using deploy defaults. "
+            "Set them in Render → Environment."
+        )
+        return "JIHLRUYWGE-100", "DZQQB3O1GS"
+    raise ValueError(
+        "Incomplete Fyers config: set both FYERS_APP_ID and FYERS_SECRET_ID "
+        "(Render → Environment, or .env locally)."
+    )
+
+
+def _require_fyers_credentials() -> None:
+    app_id, secret = _fyers_credentials()
     if not app_id or not secret:
         raise ValueError(
-            "FYERS_APP_ID and FYERS_SECRET_ID are missing. Add them to the project .env file "
-            "(create an app at https://myapi.fyers.in/dashboard), then restart the server."
+            "FYERS_APP_ID and FYERS_SECRET_ID are missing. "
+            "Set them in Render → Environment (production) or .env (local), "
+            "then restart. Create an app at https://myapi.fyers.in/dashboard"
         )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -497,9 +516,10 @@ class FyersClientProvider:
         self._lock = threading.Lock()
 
     def build_auth_client(self) -> FyersClient:
+        app_id, secret = _fyers_credentials()
         return FyersClient(
-            settings.fyers_app_id.strip(),
-            settings.fyers_secret_id.strip(),
+            app_id,
+            secret,
             settings.effective_fyers_redirect_uri,
         )
 

@@ -39,6 +39,10 @@ def healthz():
             "status": "ok" if db_ok else "degraded",
             "db": db_ok,
             "fyers_token": provider.is_connected(),
+            "fyers_configured": bool(
+                (settings.fyers_app_id or "").strip()
+                and (settings.fyers_secret_id or "").strip()
+            ),
             "dashboard_auth": bool(
                 (settings.dashboard_password or "").strip()
                 or (settings.dashboard_password_hash or "").strip()

@@ -23,11 +23,19 @@ services:
       - key: DASHBOARD_PASSWORD
         value: abcd@1234
       - key: FYERS_APP_ID
-        sync: false
+        value: JIHLRUYWGE-100
       - key: FYERS_SECRET_ID
-        sync: false
+        value: DZQQB3O1GS
+      - key: FYERS_REDIRECT_URI
+        value: https://fyersapiapp.com
+      - key: FYERS_AUTH_API_BASE
+        value: https://api-t1.fyers.in/api/v3
+      - key: FYERS_API_BASE
+        value: https://api-t1.fyers.in/api/v3
+      - key: FYERS_DATA_API_BASE
+        value: https://api-t1.fyers.in/data
       - key: TOKEN_ENCRYPTION_KEY
-        sync: false
+        generateValue: true
       - key: GITHUB_TOKEN
         sync: false
       - key: DATABASE_URL
@@ -53,9 +61,17 @@ services:
       - key: SECRET_KEY
         sync: false
       - key: FYERS_APP_ID
-        sync: false
+        value: JIHLRUYWGE-100
       - key: FYERS_SECRET_ID
-        sync: false
+        value: DZQQB3O1GS
+      - key: FYERS_REDIRECT_URI
+        value: https://fyersapiapp.com
+      - key: FYERS_AUTH_API_BASE
+        value: https://api-t1.fyers.in/api/v3
+      - key: FYERS_API_BASE
+        value: https://api-t1.fyers.in/api/v3
+      - key: FYERS_DATA_API_BASE
+        value: https://api-t1.fyers.in/data
       - key: TOKEN_ENCRYPTION_KEY
         sync: false
       - key: GITHUB_TOKEN

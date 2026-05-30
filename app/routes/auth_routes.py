@@ -11,7 +11,7 @@ from app.auth import is_authenticated, login_required, login_user, logout_user
 from app.errors import AuthError, ValidationError
 from app.extensions import rate_limit
 from config import settings
-from fyers_integration import provider
+from fyers_integration import provider, _fyers_credentials
 from security import verify_dashboard_login
 
 logger = logging.getLogger(__name__)
@@ -50,10 +50,11 @@ def fyers_login():
     """Return Fyers login URL. Frontend opens it in a new tab (no dashboard gate)."""
     try:
         client = provider.build_auth_client()
+        app_id, _ = _fyers_credentials()
         return jsonify({
             "auth_url": client.generate_auth_url(),
             "redirect_uri": settings.effective_fyers_redirect_uri,
-            "client_id": settings.fyers_app_id.strip(),
+            "client_id": app_id,
         })
     except ValueError as exc:
         raise ValidationError(str(exc)) from exc
