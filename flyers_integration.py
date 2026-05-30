@@ -153,8 +153,8 @@ class FyersClient:
     def __init__(self, app_id: str, secret_id: str, redirect_uri: str = "https://fyersapiapp.com"):
         """
         Args:
-            app_id: Your Fyers App ID (e.g. "HTEDSURO6P-100")
-            secret_id: Your Fyers App Secret (e.g. "6E0U40KRQT")
+            app_id: Your Fyers App ID (e.g. "JIHLRUYWGE-100")
+            secret_id: Your Fyers App Secret (e.g. "DZQQB3O1GS")
             redirect_uri: MUST match what you set in Fyers App Dashboard
                           (https://myapi.fyers.in/dashboard)
         """
@@ -628,8 +628,8 @@ class FyersClient:
 
 def test_connection():
     """Interactive test: authenticate and fetch sample data."""
-    APP_ID = "HTEDSURO6P-100"
-    SECRET_ID = "6E0U40KRQT"
+    APP_ID = "JIHLRUYWGE-100"
+    SECRET_ID = "DZQQB3O1GS"
 
     # IMPORTANT: redirect_uri MUST match your Fyers App Dashboard setting!
     # Check at: https://myapi.fyers.in/dashboard

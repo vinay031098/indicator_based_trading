@@ -23,8 +23,8 @@ import requests
 
 # ─── Config (env-based for local vs production) ─────────────────────────
 PRODUCTION = os.environ.get("PRODUCTION", "0") == "1"
-APP_ID = os.environ.get("FYERS_APP_ID", "HTEDSURO6P-100")
-SECRET_ID = os.environ.get("FYERS_SECRET_ID", "6E0U40KRQT")
+APP_ID = os.environ.get("FYERS_APP_ID", "JIHLRUYWGE-100")
+SECRET_ID = os.environ.get("FYERS_SECRET_ID", "DZQQB3O1GS")
 DOMAIN = os.environ.get("DOMAIN", "belezabrasileiro.com")
 
 # Always use fyersapiapp.com — Fyers redirects there, user pastes URL back

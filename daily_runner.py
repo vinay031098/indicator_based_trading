@@ -32,8 +32,8 @@ from data_store import create_run, save_stock_analysis, save_ai_recommendations,
 from indicators import analyze_stock
 
 # ─── Config ───────────────────────────────────────────────────────
-APP_ID = os.environ.get("FYERS_APP_ID", "HTEDSURO6P-100")
-SECRET_ID = os.environ.get("FYERS_SECRET_ID", "6E0U40KRQT")
+APP_ID = os.environ.get("FYERS_APP_ID", "JIHLRUYWGE-100")
+SECRET_ID = os.environ.get("FYERS_SECRET_ID", "DZQQB3O1GS")
 REDIRECT_URI = "https://fyersapiapp.com"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 

@@ -10,8 +10,8 @@ sys.path.insert(0, '/Users/vinay/Library/CloudStorage/GoogleDrive-vinay904412@gm
 from main import NiftyAnalyzer
 from flyers_integration import FyersClient
 
-APP_ID = "HTEDSURO6P-100"
-SECRET_ID = "6E0U40KRQT"
+APP_ID = "JIHLRUYWGE-100"
+SECRET_ID = "DZQQB3O1GS"
 
 
 def main():

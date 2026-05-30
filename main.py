@@ -96,8 +96,8 @@ class NiftyAnalyzer:
 
 
 if __name__ == "__main__":
-    APP_ID = "HTEDSURO6P-100"
-    SECRET_ID = "6E0U40KRQT"
+    APP_ID = "JIHLRUYWGE-100"
+    SECRET_ID = "DZQQB3O1GS"
 
     print("=" * 80)
     print("NIFTY 50 INDICATOR-BASED ANALYZER — FYERS DATA SOURCE")
