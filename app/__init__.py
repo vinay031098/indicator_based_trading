@@ -53,9 +53,11 @@ def _init_extensions(app: Flask) -> None:
     from app.extensions import HAS_CACHE, HAS_CSRF, HAS_LIMITER, cache, csrf, limiter
 
     if HAS_LIMITER and limiter is not None:
-        storage = settings.redis_url or "memory://"
+        # Always in-memory for the web app. Render's REDIS_URL is for RQ workers only;
+        # using Redis here breaks rate-limited routes (e.g. /auth/login) when Redis is
+        # unavailable or misconfigured on free tier.
+        app.config["RATELIMIT_STORAGE_URI"] = "memory://"
         limiter.init_app(app)
-        app.config["RATELIMIT_STORAGE_URI"] = storage
 
     if HAS_CSRF and csrf is not None:
         csrf.init_app(app)
@@ -63,7 +65,14 @@ def _init_extensions(app: Flask) -> None:
 
     if HAS_CACHE and cache is not None:
         if settings.redis_url:
-            cache.init_app(app, config={"CACHE_TYPE": "RedisCache", "CACHE_REDIS_URL": settings.redis_url})
+            try:
+                cache.init_app(
+                    app,
+                    config={"CACHE_TYPE": "RedisCache", "CACHE_REDIS_URL": settings.redis_url},
+                )
+            except Exception as exc:  # pragma: no cover
+                logger.warning("Redis cache unavailable (%s); using SimpleCache.", exc)
+                cache.init_app(app)
         else:
             cache.init_app(app)
 
