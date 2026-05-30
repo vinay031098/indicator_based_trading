@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     # ─── Dashboard auth (server-side) ──────────────────────────────
     # Store ONLY a werkzeug password hash here, never a plaintext password.
     dashboard_user: str = Field(default="Trader", alias="DASHBOARD_USER")
+    # Prefer DASHBOARD_PASSWORD_HASH; use DASHBOARD_PASSWORD on Render if $ in hash breaks.
+    dashboard_password: str = Field(default="", alias="DASHBOARD_PASSWORD")
     dashboard_password_hash: str = Field(default="", alias="DASHBOARD_PASSWORD_HASH")
 
     # ─── Fyers ─────────────────────────────────────────────────────
@@ -108,8 +110,10 @@ class Settings(BaseSettings):
             return problems
         if self.secret_key == "dev-only-insecure-key-change-me":
             problems.append("SECRET_KEY must be set to a strong random value in production.")
-        if not self.dashboard_password_hash:
-            problems.append("DASHBOARD_PASSWORD_HASH must be set in production.")
+        if not self.dashboard_password_hash and not self.dashboard_password:
+            problems.append(
+                "Set DASHBOARD_PASSWORD or DASHBOARD_PASSWORD_HASH in production."
+            )
         if not self.fyers_app_id or not self.fyers_secret_id:
             problems.append("FYERS_APP_ID and FYERS_SECRET_ID must be set in production.")
         if not self.token_encryption_key:

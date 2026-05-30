@@ -5,6 +5,7 @@ encrypted-at-rest persistence for the Fyers access token.
 
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 
@@ -20,13 +21,17 @@ _TOKEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".fyers_t
 # ─── Dashboard password ────────────────────────────────────────────
 
 def verify_dashboard_login(username: str, password: str) -> bool:
-    """Constant-ish time check against configured user + password hash."""
-    if not settings.dashboard_password_hash:
-        logger.warning("DASHBOARD_PASSWORD_HASH not set; dashboard login disabled.")
-        return False
+    """Check username + password (plain env or werkzeug hash)."""
     if username != settings.dashboard_user:
         return False
-    return check_password_hash(settings.dashboard_password_hash, password)
+    plain = (settings.dashboard_password or "").strip()
+    if plain:
+        return hmac.compare_digest(password, plain)
+    pwd_hash = (settings.dashboard_password_hash or "").strip()
+    if not pwd_hash:
+        logger.warning("Dashboard login disabled: set DASHBOARD_PASSWORD or DASHBOARD_PASSWORD_HASH.")
+        return False
+    return check_password_hash(pwd_hash, password)
 
 
 def make_password_hash(password: str) -> str:

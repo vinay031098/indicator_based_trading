@@ -39,6 +39,10 @@ def healthz():
             "status": "ok" if db_ok else "degraded",
             "db": db_ok,
             "fyers_token": provider.is_connected(),
+            "dashboard_auth": bool(
+                (settings.dashboard_password or "").strip()
+                or (settings.dashboard_password_hash or "").strip()
+            ),
             "jobs": "redis" if settings.jobs_enabled else "in-process",
             "time": datetime.now().isoformat(),
         }
