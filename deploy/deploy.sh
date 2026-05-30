@@ -44,8 +44,14 @@ if [ ! -f "$APP_DIR/.env" ]; then
 PRODUCTION=1
 DOMAIN=$DOMAIN
 SECRET_KEY=$SECRET
+DASHBOARD_USER=Trader
+DASHBOARD_PASSWORD_HASH=pbkdf2:sha256:600000\$kEYZ2hUdiXCPoVla\$eb274dbe6866a5a9342ebe433fb531971e61c5363f9dde87c59697b8a623cb50
 FYERS_APP_ID=JIHLRUYWGE-100
 FYERS_SECRET_ID=DZQQB3O1GS
+FYERS_REDIRECT_URI=https://fyersapiapp.com
+FYERS_AUTH_API_BASE=https://api-t1.fyers.in/api/v3
+FYERS_API_BASE=https://api-t1.fyers.in/api/v3
+FYERS_DATA_API_BASE=https://api-t1.fyers.in/data
 EOF
     echo "  Created .env with random SECRET_KEY"
 else
